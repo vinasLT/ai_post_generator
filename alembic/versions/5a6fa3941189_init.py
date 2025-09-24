@@ -1,8 +1,8 @@
 """init
 
-Revision ID: 856e70ca9a07
+Revision ID: 5a6fa3941189
 Revises: 
-Create Date: 2025-09-17 18:43:32.185257
+Create Date: 2025-09-24 14:07:23.137748
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '856e70ca9a07'
+revision: str = '5a6fa3941189'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -27,13 +27,13 @@ def upgrade() -> None:
     sa.Column('site', sa.Enum('COPART', 'IAAI', name='auctionenum'), nullable=False),
     sa.Column('make', sa.String(), nullable=False),
     sa.Column('model', sa.String(), nullable=False),
-    sa.Column('year_from', sa.Integer(), nullable=False),
-    sa.Column('year_to', sa.Integer(), nullable=False),
-    sa.Column('odo_from', sa.Integer(), nullable=False),
-    sa.Column('odo_to', sa.Integer(), nullable=False),
-    sa.Column('document', sa.String(), nullable=False),
-    sa.Column('transmission', sa.String(), nullable=False),
-    sa.Column('status', sa.String(), nullable=False),
+    sa.Column('year_from', sa.Integer(), nullable=True),
+    sa.Column('year_to', sa.Integer(), nullable=True),
+    sa.Column('odo_from', sa.Integer(), nullable=True),
+    sa.Column('odo_to', sa.Integer(), nullable=True),
+    sa.Column('document', sa.String(), nullable=True),
+    sa.Column('transmission', sa.String(), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
@@ -43,6 +43,7 @@ def upgrade() -> None:
     sa.Column('auction', sa.Enum('COPART', 'IAAI', name='auctionenum'), nullable=False),
     sa.Column('title', sa.String(), nullable=False),
     sa.Column('odometer', sa.Integer(), nullable=False),
+    sa.Column('year', sa.Integer(), nullable=False),
     sa.Column('reserve_price', sa.Integer(), nullable=True),
     sa.Column('vin', sa.String(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),

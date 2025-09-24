@@ -60,3 +60,14 @@ class ApiRpcClient(BaseRpcClient[lot_pb2_grpc.LotServiceStub]):
     async def get_sale_history(self, lot_id: int, site: str) -> lot_pb2.GetSaleHistoryResponse:
         data = lot_pb2.GetSaleHistoryRequest(lot_id=lot_id, site=site)
         return await self._execute_request(self.stub.GetSaleHistory, data)
+
+    async def get_average_price(
+            self,
+            make: str,
+            model: str,
+            year_from: int,
+            year_to: int,
+            period: int = 6
+    ) -> lot_pb2.GetAveragePriceByMakeModelResponse:
+        data = lot_pb2.GetAveragePriceByMakeModelRequest(make=make, model=model, year_from=year_from, year_to=year_to, period=period)
+        return await self._execute_request(self.stub.GetAveragePriceByMakeModel, data)

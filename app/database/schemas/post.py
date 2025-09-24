@@ -18,6 +18,7 @@ class PostCreate(BaseModel):
     average_sell_price: int | None = None
     is_posted: bool | None = False
     images: str
+    year: int
     image_description: str | None = None
     image_score: int | None = None
 

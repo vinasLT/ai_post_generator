@@ -10,13 +10,13 @@ class RequestFiltersCreate(BaseModel):
     site: str
     make: str
     model: str
-    year_from: int
-    year_to: int
-    odo_from: int
-    odo_to: int
-    document: str
-    transmission: str
-    status: str
+    year_from: int | None = None
+    year_to: int | None = None
+    odo_from: int | None = None
+    odo_to: int | None = None
+    document: str | None = None
+    transmission: str | None = None
+    status: str | None = None
 
     created_at: Optional[datetime] = None
 

@@ -39,6 +39,11 @@ class LotServiceStub(object):
                 request_serializer=auction_dot_v1_dot_lot__pb2.GetCurrentBidRequest.SerializeToString,
                 response_deserializer=auction_dot_v1_dot_lot__pb2.GetCurrentBidResponse.FromString,
                 _registered_method=True)
+        self.GetAveragePriceByMakeModel = channel.unary_unary(
+                '/auction.v1.LotService/GetAveragePriceByMakeModel',
+                request_serializer=auction_dot_v1_dot_lot__pb2.GetAveragePriceByMakeModelRequest.SerializeToString,
+                response_deserializer=auction_dot_v1_dot_lot__pb2.GetAveragePriceByMakeModelResponse.FromString,
+                _registered_method=True)
 
 
 class LotServiceServicer(object):
@@ -74,6 +79,12 @@ class LotServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetAveragePriceByMakeModel(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_LotServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -101,6 +112,11 @@ def add_LotServiceServicer_to_server(servicer, server):
                     servicer.GetCurrentBid,
                     request_deserializer=auction_dot_v1_dot_lot__pb2.GetCurrentBidRequest.FromString,
                     response_serializer=auction_dot_v1_dot_lot__pb2.GetCurrentBidResponse.SerializeToString,
+            ),
+            'GetAveragePriceByMakeModel': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAveragePriceByMakeModel,
+                    request_deserializer=auction_dot_v1_dot_lot__pb2.GetAveragePriceByMakeModelRequest.FromString,
+                    response_serializer=auction_dot_v1_dot_lot__pb2.GetAveragePriceByMakeModelResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -238,6 +254,33 @@ class LotService(object):
             '/auction.v1.LotService/GetCurrentBid',
             auction_dot_v1_dot_lot__pb2.GetCurrentBidRequest.SerializeToString,
             auction_dot_v1_dot_lot__pb2.GetCurrentBidResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAveragePriceByMakeModel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/auction.v1.LotService/GetAveragePriceByMakeModel',
+            auction_dot_v1_dot_lot__pb2.GetAveragePriceByMakeModelRequest.SerializeToString,
+            auction_dot_v1_dot_lot__pb2.GetAveragePriceByMakeModelResponse.FromString,
             options,
             channel_credentials,
             insecure,

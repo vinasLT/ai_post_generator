@@ -15,7 +15,8 @@ dependencies = [
     "alembic (>=1.16.5,<2.0.0)",
     "grpcio (>=1.74.0,<2.0.0)",
     "protobuf (>=6.32.1,<7.0.0)",
-    "python-dateutil (>=2.9.0.post0,<3.0.0)"
+    "python-dateutil (>=2.9.0.post0,<3.0.0)",
+    "pytz (>=2025.2,<2026.0)"
 ]
 
 

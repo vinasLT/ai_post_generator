@@ -20,6 +20,7 @@ class Post(Base):
 
     title: Mapped[str] = mapped_column(nullable=False)
     odometer: Mapped[int] = mapped_column(nullable=False)
+    year: Mapped[int] = mapped_column(nullable=False)
     reserve_price: Mapped[int] = mapped_column(nullable=True)
     vin: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)

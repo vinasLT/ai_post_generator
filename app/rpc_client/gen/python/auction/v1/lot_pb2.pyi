@@ -5,6 +5,38 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class GetAveragePriceByMakeModelRequest(_message.Message):
+    __slots__ = ("make", "model", "year_from", "year_to", "period")
+    MAKE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_FIELD_NUMBER: _ClassVar[int]
+    YEAR_FROM_FIELD_NUMBER: _ClassVar[int]
+    YEAR_TO_FIELD_NUMBER: _ClassVar[int]
+    PERIOD_FIELD_NUMBER: _ClassVar[int]
+    make: str
+    model: str
+    year_from: int
+    year_to: int
+    period: int
+    def __init__(self, make: _Optional[str] = ..., model: _Optional[str] = ..., year_from: _Optional[int] = ..., year_to: _Optional[int] = ..., period: _Optional[int] = ...) -> None: ...
+
+class GetAveragePriceByMakeModelResponse(_message.Message):
+    __slots__ = ("stats",)
+    STATS_FIELD_NUMBER: _ClassVar[int]
+    stats: _containers.RepeatedCompositeFieldContainer[StatsItem]
+    def __init__(self, stats: _Optional[_Iterable[_Union[StatsItem, _Mapping]]] = ...) -> None: ...
+
+class StatsItem(_message.Message):
+    __slots__ = ("total", "min", "max", "count")
+    TOTAL_FIELD_NUMBER: _ClassVar[int]
+    MIN_FIELD_NUMBER: _ClassVar[int]
+    MAX_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    total: int
+    min: int
+    max: int
+    count: int
+    def __init__(self, total: _Optional[int] = ..., min: _Optional[int] = ..., max: _Optional[int] = ..., count: _Optional[int] = ...) -> None: ...
+
 class GetCurrentLotsByFiltersRequest(_message.Message):
     __slots__ = ("site", "make", "model", "year_from", "year_to", "vehicle_type", "status", "transmission", "odometer_min", "odometer_max", "document", "size", "page")
     SITE_FIELD_NUMBER: _ClassVar[int]

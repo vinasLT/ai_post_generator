@@ -1,4 +1,4 @@
-from typing import Any, Coroutine, Sequence
+from typing import Any, Coroutine, Sequence, Union
 
 from sqlalchemy import select, Row, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,16 @@ from app.database.schemas.post import PostCreate, PostUpdate
 class PostService(BaseService[Post, PostCreate, PostUpdate]):
     def __init__(self, session: AsyncSession):
         super().__init__(Post, session)
+
+    async def get_repeated_posts(self, lot_ids: list[int], return_ids: bool = False) -> Union[
+        Sequence[Post], list[int]]:
+        result = await self.session.execute(
+            select(Post if not return_ids else Post.lot_id).where(
+                Post.lot_id.in_(lot_ids)
+            )
+        )
+        return result.scalars().all()
+
 
     async def get_by_lot_id(self, lot_id: int) -> Post:
         result = await self.session.execute(
