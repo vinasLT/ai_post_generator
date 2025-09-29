@@ -38,7 +38,7 @@ class StatsItem(_message.Message):
     def __init__(self, total: _Optional[int] = ..., min: _Optional[int] = ..., max: _Optional[int] = ..., count: _Optional[int] = ...) -> None: ...
 
 class GetCurrentLotsByFiltersRequest(_message.Message):
-    __slots__ = ("site", "make", "model", "year_from", "year_to", "vehicle_type", "status", "transmission", "odometer_min", "odometer_max", "document", "size", "page")
+    __slots__ = ("site", "make", "model", "year_from", "year_to", "vehicle_type", "status", "transmission", "odometer_min", "odometer_max", "document", "auction_date_from", "auction_date_to", "size", "page")
     SITE_FIELD_NUMBER: _ClassVar[int]
     MAKE_FIELD_NUMBER: _ClassVar[int]
     MODEL_FIELD_NUMBER: _ClassVar[int]
@@ -50,6 +50,8 @@ class GetCurrentLotsByFiltersRequest(_message.Message):
     ODOMETER_MIN_FIELD_NUMBER: _ClassVar[int]
     ODOMETER_MAX_FIELD_NUMBER: _ClassVar[int]
     DOCUMENT_FIELD_NUMBER: _ClassVar[int]
+    AUCTION_DATE_FROM_FIELD_NUMBER: _ClassVar[int]
+    AUCTION_DATE_TO_FIELD_NUMBER: _ClassVar[int]
     SIZE_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
     site: str
@@ -63,9 +65,11 @@ class GetCurrentLotsByFiltersRequest(_message.Message):
     odometer_min: int
     odometer_max: int
     document: str
+    auction_date_from: str
+    auction_date_to: str
     size: int
     page: int
-    def __init__(self, site: _Optional[str] = ..., make: _Optional[str] = ..., model: _Optional[str] = ..., year_from: _Optional[int] = ..., year_to: _Optional[int] = ..., vehicle_type: _Optional[str] = ..., status: _Optional[str] = ..., transmission: _Optional[str] = ..., odometer_min: _Optional[int] = ..., odometer_max: _Optional[int] = ..., document: _Optional[str] = ..., size: _Optional[int] = ..., page: _Optional[int] = ...) -> None: ...
+    def __init__(self, site: _Optional[str] = ..., make: _Optional[str] = ..., model: _Optional[str] = ..., year_from: _Optional[int] = ..., year_to: _Optional[int] = ..., vehicle_type: _Optional[str] = ..., status: _Optional[str] = ..., transmission: _Optional[str] = ..., odometer_min: _Optional[int] = ..., odometer_max: _Optional[int] = ..., document: _Optional[str] = ..., auction_date_from: _Optional[str] = ..., auction_date_to: _Optional[str] = ..., size: _Optional[int] = ..., page: _Optional[int] = ...) -> None: ...
 
 class GetCurrentLotsByFiltersResponse(_message.Message):
     __slots__ = ("lot", "pagination")

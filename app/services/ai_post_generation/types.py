@@ -12,6 +12,8 @@ class Filters(BaseModel):
     document: str | None = None
     transmission: str | None = None
     status: str | None = None
+    auction_date_from: str | None = None
+    auction_date_to: str | None = None
 
     model_config = ConfigDict(extra='ignore')
 

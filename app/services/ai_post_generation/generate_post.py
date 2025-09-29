@@ -1,9 +1,10 @@
 import ast
 import asyncio
-from typing import Any
+from typing import Any, Generator, AsyncGenerator, Coroutine
 
 from dateutil import parser
 import grpc
+from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
 
 from app.core.logger import logger, log_async_execution_time, async_timer
 from app.database.crud.post import PostService
@@ -14,7 +15,9 @@ from app.database.schemas.post import PostCreate, PostUpdate
 from app.rpc_client.auction_api import ApiRpcClient
 from app.rpc_client.calculator import CalculatorRcpClient
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
+from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
 from app.rpc_client.gen.python.calculator.v1 import calculator_pb2
+from app.rpc_client.gen.python.calculator.v1.calculator_pb2 import GetCalculatorWithDataResponse
 from app.services.ai_post_generation.ai_service import Transformers
 from app.services.ai_post_generation.post_serializer import SerializePost
 from app.services.ai_post_generation.types import Filters
@@ -29,12 +32,15 @@ class GeneratePost:
         self.auction_api_client = ApiRpcClient()
 
     async def _get_search_results_from_api(self, page: int = 1)-> lot_pb2.GetCurrentLotsByFiltersResponse | None:
-        async with self.auction_api_client as client:
-
-            return await client.get_current_lots_with_filters(
-                self.filters,
-                page=page
-            )
+        try:
+            async with self.auction_api_client as client:
+                return await client.get_current_lots_with_filters(
+                    self.filters,
+                    page=page
+                )
+        except grpc.aio.AioRpcError as e:
+            logger.error(f'Error getting search results from api for request: {self.request_id}',
+                         extra={'error_code': str(e.code()), 'error_details': str(e.details())})
     @classmethod
     async def get_calculator_for_lot(cls, lot: lot_pb2.Lot) -> calculator_pb2.GetCalculatorWithDataResponse | None:
         async with CalculatorRcpClient() as client:
@@ -60,7 +66,7 @@ class GeneratePost:
                 if calculator:
                     lots_with_calculators.append((lot, calculator))
             except Exception as e:
-                logger.error(f"Error getting calculator for lot {lot.lot_id}: {e}")
+                logger.error(f"Error getting calculator for lot {lot.lot_id}: {str(e)}")
 
         tasks = [asyncio.create_task(get_calculator(lot)) for lot in lots]
         await asyncio.gather(*tasks)
@@ -211,6 +217,8 @@ class GeneratePost:
 
 
     async def send_error_to_user(self, error_message: str):
+        error_message += f'\nSearch for make: {self.filters.make}'
+
         async with RabbitMQPublisher() as publisher:
             await publisher.publish(routing_key='posts_service.error', payload={
                 'error_message': error_message,
@@ -219,40 +227,36 @@ class GeneratePost:
             })
         pass
 
-    @log_async_execution_time('Post generating')
-    async def generate_post(self):
+    @log_async_execution_time('Post page processing')
+    async def process_lots_page(self, lots: list[lot_pb2.Lot]):
         try:
-            unique_lots = await self._fetch_unique_lots()
-            if not unique_lots:
-                return None
-
-            lots_after_ai_processing = await self._process_lots_with_ai(unique_lots)
+            lots_after_ai_processing, lots_with_calculator = await self._process_lots_with_ai(lots)
             if not lots_after_ai_processing:
-                await self.send_error_to_user(f'AI didnt find any suitable lots, try changing your search parameters')
+                logger.error(f'AI text chooser didnt find any suitable lots for request: {self.request_id}',)
                 return None
 
             lots_with_descriptions = await self._process_lot_images(lots_after_ai_processing)
             if not lots_with_descriptions:
                 logger.error(f'No lots with descriptions for request: {self.request_id}',
                              extra={'request_id': self.request_id})
-                await self.send_error_to_user(f'No lots with descriptions found\n'
-                                              f'request id: {self.request_id}')
                 return None
 
             final_lots = await self._get_final_processed_lots(lots_with_descriptions)
             if not final_lots:
                 logger.error(f'No final lots after processing for request: {self.request_id}',
                              extra={'request_id': self.request_id})
-                await self.send_error_to_user(f'No final lots after processing\n'
-                                              f'request id: {self.request_id}')
                 return None
 
-            lots_index = {lot.lot_id: lot for lot in lots_after_ai_processing}
-            await self._update_average_prices(final_lots, lots_index)
-            posts = await self.left_only_this_lot_ids_db(final_lots)
-            await self.send_response_to_user(posts)
+            final_lots_with_calculator = [
+                (lot, calc) for lot, calc in lots_with_calculator
+                if lot.lot_id in final_lots
+            ]
+            await self.create_posts_batch(final_lots_with_calculator)
 
-            return lots_with_descriptions
+            lots_index = {lot.lot_id: lot for lot in lots_after_ai_processing if lot.lot_id in final_lots}
+            await self._update_average_prices(final_lots, lots_index)
+
+            return lots_index
         except Exception as e:
             logger.error(f'Error in generate_post for request: {self.request_id}',
                          exc_info=True, extra={'request_id': self.request_id})
@@ -260,11 +264,82 @@ class GeneratePost:
                                           f'request id: {self.request_id}')
             return None
 
-    async def _fetch_unique_lots(self):
+    async def api_search_generator(self) -> AsyncGenerator[list[Lot], None]:
+        search_results = await self._get_search_results_from_api(page=1)
+        pages = search_results.pagination.pages
+        logger.debug(f'Pages available: {pages}')
+        yield list(search_results.lot)
+
+        pages_to_process = min(pages, 20)
+        for page in range(2, pages_to_process + 1):
+            result = await self._get_search_results_from_api(page=page)
+            lots = list(result.lot)
+            yield lots
+
+    @log_async_execution_time('Generate posts')
+    async def generate_post(self):
+        try:
+            semaphore = asyncio.Semaphore(5)
+            processing_tasks = []
+
+            async def process_and_send_page(lots, page_num):
+                async with semaphore:
+                    logger.debug(f'Processing page {page_num} for request: {self.request_id}')
+
+                    lots_index = await self.process_lots_page(lots)
+
+                    if not lots_index:
+                        logger.debug(f'No results from page {page_num}')
+                        return 0
+
+                    page_lot_ids = list(lots_index.keys())
+                    posts = await self.left_only_this_lot_ids_db(page_lot_ids)
+
+                    if posts:
+                        logger.info(f'Sending {len(posts)} posts from page {page_num} to user')
+                        await self.send_response_to_user(posts)
+                        return len(posts)
+
+                    return 0
+
+            page_num = 0
+            async for lots in self.api_search_generator():
+                page_num += 1
+                unique_lots = await self.process_repeated_posts(lots)
+
+                if len(unique_lots) < 10:
+                    logger.debug(f'Skipping page {page_num} with only {len(unique_lots)} unique lots')
+                    continue
+
+                # Добавляем задачу на обработку страницы
+                task = asyncio.create_task(process_and_send_page(unique_lots, page_num))
+                processing_tasks.append(task)
+
+            # Ждем завершения всех задач
+            results = await asyncio.gather(*processing_tasks, return_exceptions=True)
+
+            # Подсчитываем успешно отправленные посты
+            total_posts_sent = sum(r for r in results if isinstance(r, int))
+            errors = [r for r in results if isinstance(r, Exception)]
+
+            if errors:
+                logger.warning(f'Some pages failed to process: {len(errors)} errors')
+
+            logger.info(f'Completed generation. Total posts sent: {total_posts_sent} for request: {self.request_id}')
+
+        except Exception as e:
+            logger.error(f'Error in generate_post_parallel for request: {self.request_id}',
+                         extra={'request_id': self.request_id, 'error': str(e)})
+            await self.send_error_to_user(f'Error generating posts: {str(e)}\n'
+                                          f'request id: {self.request_id}')
+            return None
+
+
+    async def _fetch_unique_lots(self, page: int = 1):
         try:
             async with async_timer('get api results'):
-                search_results = await self._get_search_results_from_api()
-                logger.debug(f'Found {len(search_results.lot)} lots')
+                search_results = await self._get_search_results_from_api(page=page)
+                logger.debug(f'Found {len(search_results.lot)} lots for page {page}')
 
             if len(search_results.lot) == 0:
                 logger.error(f'No lots found for request: {self.request_id}', extra={'request_id': self.request_id})
@@ -301,39 +376,68 @@ class GeneratePost:
             return unique_lots
         except Exception as e:
             logger.error(f'Error in _fetch_unique_lots for request: {self.request_id}',
-                         exc_info=True, extra={'request_id': self.request_id})
+                        extra={'request_id': self.request_id, 'error': str(e)})
             await self.send_error_to_user(f'Error fetching lots: {str(e)}\n'
                                           f'request id: {self.request_id}')
             return None
 
-    async def _process_lots_with_ai(self, unique_lots):
+    async def _process_lots_with_ai(self, unique_lots, max_retries=3, retry_delay=2)-> tuple[list[Lot], list[tuple[
+        Lot, GetCalculatorWithDataResponse]] | None] | None:
         try:
             serialized_lots = Transformers.transform_lot_for_ai(unique_lots)
 
             async with async_timer('get calculator and process lots with ai chooser'):
                 calculator_task = self.get_calculators_for_lots(unique_lots)
-                ai_chooser_task = self.request_to_ai_assistant(
-                    serialized_lots,
-                    'lot_chooser',
-                    'post_generator.generate_response.text',
-                    timeout=120
-                )
 
-                responses = await asyncio.gather(calculator_task, ai_chooser_task)
+                response_from_ai_chooser = None
+                for attempt in range(max_retries):
+                    try:
+                        ai_chooser_task = self.request_to_ai_assistant(
+                            serialized_lots,
+                            'lot_chooser',
+                            'post_generator.generate_response.text',
+                            timeout=120
+                        )
 
-            lots_with_calculator = responses[0]
+                        responses = await asyncio.gather(calculator_task, ai_chooser_task)
+                        calculator_task = asyncio.create_task(asyncio.sleep(0))  # Fake task for next iterations
+
+                        response_from_ai_chooser = responses[1]
+                        lots_from_ai_chooser = response_from_ai_chooser.get('lots', [])
+
+                        if lots_from_ai_chooser and len(lots_from_ai_chooser) > 0:
+                            logger.info(
+                                f'AI chooser returned {len(lots_from_ai_chooser)} lots on attempt {attempt + 1}')
+                            break
+                        else:
+                            logger.warning(f'AI chooser returned no lots on attempt {attempt + 1}/{max_retries}')
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(retry_delay)
+                            else:
+                                logger.error(f'AI chooser failed to return lots after {max_retries} attempts')
+                                response_from_ai_chooser = {'lots': []}
+
+                    except Exception as e:
+                        logger.error(f'Error in AI chooser attempt {attempt + 1}/{max_retries}: {str(e)}')
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(retry_delay)
+                        else:
+                            raise
+
+                lots_with_calculator = responses[0] if attempt == 0 else await self.get_calculators_for_lots(
+                    unique_lots)
+
             lots_from_calculator = [lot.lot_id for lot, calculator in lots_with_calculator]
-            await self.create_posts_batch(lots_with_calculator)
 
-            response_from_ai_chooser = responses[1]
-            lots_from_ai_chooser = response_from_ai_chooser.get('lots')
+            lots_from_ai_chooser = response_from_ai_chooser.get('lots', [])
             lot_ids = [lot.get('lot_id') for lot in lots_from_ai_chooser]
 
-            await self.left_only_this_lot_ids_db(lot_ids)
-            lots_with_calculator = self.left_lots_by_lot_ids(lots_from_calculator, unique_lots)
-            logger.debug(f'Lots with calculator: {len(lots_with_calculator)}')
+            lots_filtered = self.left_lots_by_lot_ids(lots_from_calculator, unique_lots)
+            logger.debug(f'Lots with calculator: {len(lots_filtered)}')
 
-            return self.left_lots_by_lot_ids(lot_ids, lots_with_calculator)
+            return (self.left_lots_by_lot_ids(lot_ids, lots_filtered),
+                    lots_with_calculator)
+
         except Exception as e:
             logger.error(f'Error in _process_lots_with_ai for request: {self.request_id}',
                          exc_info=True, extra={'request_id': self.request_id})

@@ -9,7 +9,7 @@ class RequestFiltersCreate(BaseModel):
 
     site: str
     make: str
-    model: str
+    model: str | None = None
     year_from: int | None = None
     year_to: int | None = None
     odo_from: int | None = None
@@ -17,6 +17,8 @@ class RequestFiltersCreate(BaseModel):
     document: str | None = None
     transmission: str | None = None
     status: str | None = None
+    auction_date_from: datetime | None = None
+    auction_date_to: datetime | None = None
 
     created_at: Optional[datetime] = None
 

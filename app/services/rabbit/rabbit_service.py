@@ -251,8 +251,6 @@ class RabbitMQPublisher:
                 timeout=timeout
             )
             tasks.append(task)
-            print('task added')
-
         try:
             responses = await asyncio.gather(*tasks)
             return responses

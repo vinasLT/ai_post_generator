@@ -48,6 +48,8 @@ class ApiRpcClient(BaseRpcClient[lot_pb2_grpc.LotServiceStub]):
             odometer_min=filters.odo_from,
             odometer_max=filters.odo_to,
             document=filters.document,
+            auction_date_from=filters.auction_date_from,
+            auction_date_to=filters.auction_date_to,
             size=size,
             page=page
         )

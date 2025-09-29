@@ -19,7 +19,7 @@ class RequestFilters(Base):
 
     site: Mapped[AuctionEnum] = mapped_column(Enum(AuctionEnum),nullable=False)
     make: Mapped[str] = mapped_column(nullable=False)
-    model: Mapped[str] = mapped_column(nullable=False)
+    model: Mapped[str] = mapped_column(nullable=True)
     year_from: Mapped[int] = mapped_column(nullable=True)
     year_to: Mapped[int] = mapped_column(nullable=True)
     odo_from: Mapped[int] = mapped_column(nullable=True)
@@ -27,6 +27,8 @@ class RequestFilters(Base):
     document: Mapped[str] = mapped_column(nullable=True)
     transmission: Mapped[str] = mapped_column(nullable=True)
     status: Mapped[str] = mapped_column(nullable=True)
+    auction_date_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    auction_date_to: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(UTC))
 

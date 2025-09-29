@@ -22,7 +22,7 @@ class CalculatorRcpClient(BaseRpcClient[calculator_pb2_grpc.CalculatorServiceStu
                                        destination: str | None = None, fee_type: str | None = None)-> calculator_pb2.GetCalculatorWithDataResponse:
         data = calculator_pb2.GetCalculatorWithDataRequest(price=price, auction=auction.upper(), vehicle_type='CAR' if vehicle_type == 'Automobile' else vehicle_type,
                                                            location=location, destination=destination, fee_type=fee_type)
-        return await self._execute_request(self.stub.GetCalculatorWithData, data)
+        return await self._execute_request(self.stub.GetCalculatorWithData, data, timeout=120)
 
 
 
