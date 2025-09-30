@@ -5,7 +5,7 @@ class SerializePost:
     def __init__(self, post: Post):
         self.post = post
 
-    def get_images(self, amount: int = 5):
+    def get_images(self, amount: int = 3):
         images = self.post.images.split(',')
         return images[:amount]
 
