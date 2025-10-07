@@ -11,6 +11,7 @@ from app.database.db.session import get_async_db, get_db
 from app.database.schemas.post import PostUpdate
 from app.database.schemas.request_filters import RequestFiltersCreate
 from app.services.ai_post_generation.generate_post import GeneratePost
+from app.services.ai_post_generation.new_ai_generation import GeneratePosts
 from app.services.ai_post_generation.post_serializer import SerializePost
 from app.services.ai_post_generation.types import Filters
 from app.services.rabbit.consumer_base import RabbitBaseService
@@ -38,16 +39,9 @@ class RabbitPostsConsumer(RabbitBaseService):
             return
 
         if route == PostsRoutingKeys.POSTS_GENERATE_WITH_FILTERS:
-            async with get_async_db() as db:
-                request_filters_service = RequestFiltersService(db)
+            generator = GeneratePosts(Filters.model_validate(payload.get("filters", {})), payload.get("user_uuid"))
+            await generator.run()
 
-                request = await request_filters_service.create(RequestFiltersCreate(
-                    user_uuid=payload.get("user_uuid"),
-                    **payload.get("filters")
-                ))
-                generator = GeneratePost(Filters.model_validate(payload.get("filters", {})), request.id, payload.get("user_uuid"))
-
-                await generator.generate_post()
         elif route == PostsRoutingKeys.POSTS_PUBLISH_POST:
             post_id = payload.get("post_id")
             async with get_async_db() as db:

@@ -5,7 +5,7 @@ from sqlalchemy import Integer, DateTime, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
-from ..enums import AuctionEnum
+from ..enums import AuctionEnum, RequestStage
 
 if TYPE_CHECKING:
     from .post import Post
@@ -29,6 +29,8 @@ class RequestFilters(Base):
     status: Mapped[str] = mapped_column(nullable=True)
     auction_date_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     auction_date_to: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    stage: Mapped[str] = mapped_column(Enum(RequestStage),nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(UTC))
 

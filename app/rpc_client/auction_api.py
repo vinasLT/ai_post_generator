@@ -1,10 +1,13 @@
 import os
 import sys
+from typing import Any, AsyncGenerator
 
 import grpc
 
 from app.config import settings
+from app.core.logger import logger
 from app.rpc_client.base_client import BaseRpcClient, T
+from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
 from app.services.ai_post_generation.types import Filters
 
 # Ensure generated proto packages (auction, carfax, payment) are importable
@@ -54,6 +57,25 @@ class ApiRpcClient(BaseRpcClient[lot_pb2_grpc.LotServiceStub]):
             page=page
         )
         return await self._execute_request(self.stub.GetCurrentLotsByFilters, data)
+
+    async def get_current_lots_by_filters_generator(
+            self,
+            filters: Filters,
+            vehicle_type: str = 'Automobile',
+            start_page: int = 1,
+            pages_limit: int = 20
+    )-> AsyncGenerator[list[Lot], Any]:
+        results = await self.get_current_lots_with_filters(filters, vehicle_type, page=start_page)
+        pages = results.pagination.pages
+        logger.debug(f'Pages available: {pages}')
+        yield list(results.lot)
+        pages_to_process = min(pages, pages_limit)
+        for page in range(start_page + 1, pages_to_process + 1):
+            result = await self.get_current_lots_with_filters(filters, vehicle_type, page=page)
+            yield list(result.lot)
+
+
+
 
     async def get_current_bid(self, lot_id: int, site: str) -> lot_pb2.GetCurrentBidResponse:
         data = lot_pb2.GetCurrentBidRequest(lot_id=lot_id, site=site)

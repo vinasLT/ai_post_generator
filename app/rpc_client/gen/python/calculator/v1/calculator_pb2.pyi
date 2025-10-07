@@ -21,6 +21,20 @@ class GetCalculatorWithDataRequest(_message.Message):
     location: str
     def __init__(self, price: _Optional[int] = ..., auction: _Optional[str] = ..., fee_type: _Optional[str] = ..., vehicle_type: _Optional[str] = ..., destination: _Optional[str] = ..., location: _Optional[str] = ...) -> None: ...
 
+class GetCalculatorBatchRequest(_message.Message):
+    __slots__ = ("data", "lot_id")
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    LOT_ID_FIELD_NUMBER: _ClassVar[int]
+    data: GetCalculatorWithDataRequest
+    lot_id: str
+    def __init__(self, data: _Optional[_Union[GetCalculatorWithDataRequest, _Mapping]] = ..., lot_id: _Optional[str] = ...) -> None: ...
+
+class GetCalculatorWithDataBatchRequest(_message.Message):
+    __slots__ = ("data",)
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    data: _containers.RepeatedCompositeFieldContainer[GetCalculatorBatchRequest]
+    def __init__(self, data: _Optional[_Iterable[_Union[GetCalculatorBatchRequest, _Mapping]]] = ...) -> None: ...
+
 class GetCalculatorWithoutDataRequest(_message.Message):
     __slots__ = ("price", "auction", "lot_id")
     PRICE_FIELD_NUMBER: _ClassVar[int]
@@ -50,6 +64,24 @@ class GetCalculatorWithoutDataResponse(_message.Message):
     message: str
     success: bool
     def __init__(self, data: _Optional[_Union[CalculatorOut, _Mapping]] = ..., message: _Optional[str] = ..., success: bool = ...) -> None: ...
+
+class CalculatorBatchItem(_message.Message):
+    __slots__ = ("calculator", "lot_id")
+    CALCULATOR_FIELD_NUMBER: _ClassVar[int]
+    LOT_ID_FIELD_NUMBER: _ClassVar[int]
+    calculator: CalculatorOut
+    lot_id: str
+    def __init__(self, calculator: _Optional[_Union[CalculatorOut, _Mapping]] = ..., lot_id: _Optional[str] = ...) -> None: ...
+
+class GetCalculatorWithDataBatchResponse(_message.Message):
+    __slots__ = ("data", "message", "success")
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    data: _containers.RepeatedCompositeFieldContainer[CalculatorBatchItem]
+    message: str
+    success: bool
+    def __init__(self, data: _Optional[_Iterable[_Union[CalculatorBatchItem, _Mapping]]] = ..., message: _Optional[str] = ..., success: bool = ...) -> None: ...
 
 class City(_message.Message):
     __slots__ = ("name", "price")
