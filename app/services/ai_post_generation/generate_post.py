@@ -5,6 +5,7 @@ from typing import Any, Generator, AsyncGenerator, Coroutine
 from dateutil import parser
 import grpc
 from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import logger, log_async_execution_time, async_timer
 from app.database.crud.post import PostService
@@ -83,6 +84,33 @@ class GeneratePost:
             logger.debug(f'First lot ID: {lots[0].lot_id}, type: {type(lots[0].lot_id)}')
             return self.exclude_lots_by_lot_ids(repeated_posts_lot_ids, lots)
 
+
+    @classmethod
+    async def create_post(cls, lot: lot_pb2.Lot, calculator: calculator_pb2.GetCalculatorWithDataResponse,
+                          request_id: int, db: AsyncSession, flush: bool = False, average_sell_price: int = None) -> Post | None:
+        post_service = PostService(db)
+        try:
+            post = await post_service.create(PostCreate(
+                lot_id=lot.lot_id,
+                auction=AuctionEnum(lot.base_site),
+                title=lot.title,
+                odometer=lot.odometer,
+                vin=lot.vin,
+                status=lot.status,
+                year=lot.year,
+                auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
+                delivery_price=calculator.data.calculator.transportation_price[0].price,
+                shipping_price=calculator.data.calculator.ocean_ship[0].price,
+                average_sell_price=average_sell_price,
+                request_id=request_id,
+                images=','.join(list(lot.link_img_hd)[:10])
+            ), flush=flush)
+        except Exception as e:
+            logger.error(f"Error processing lot {lot.lot_id} to DB: {e}")
+            return None
+        return post
+
+
     async def create_posts_batch(
             self,
             lots_with_calculators: list[tuple[lot_pb2.Lot, calculator_pb2.GetCalculatorWithDataResponse]]
@@ -90,27 +118,12 @@ class GeneratePost:
         processed_lots = []
 
         async with get_async_db() as db:
-            post_service = PostService(db)
-
             for lot_calculator_pair in lots_with_calculators:
                 lot, calculator = lot_calculator_pair
                 try:
-                    await post_service.create(PostCreate(
-                        lot_id=lot.lot_id,
-                        auction=AuctionEnum(lot.base_site),
-                        title=lot.title,
-                        odometer=lot.odometer,
-                        vin=lot.vin,
-                        status=lot.status,
-                        year=lot.year,
-                        auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
-                        delivery_price=calculator.data.calculator.transportation_price[0].price,
-                        shipping_price=calculator.data.calculator.ocean_ship[0].price,
-                        average_sell_price=None,
-                        request_id=self.request_id,
-                        images=','.join(list(lot.link_img_hd)[:10])
-                    ), flush=True)
-                    processed_lots.append(lot)
+                    post = await self.create_post(lot, calculator, self.request_id, db, flush=True)
+                    if post:
+                        processed_lots.append(post)
                 except Exception as e:
                     logger.error(f"Error processing lot {lot.lot_id} to DB: {e}")
 
@@ -173,26 +186,30 @@ class GeneratePost:
                 excluded_lots.append(lot)
         return excluded_lots
 
-
-    async def send_response_to_user(self, posts: list[Post]):
+    @classmethod
+    def generate_response_for_user(cls, posts: list[Post])-> list[dict[str, Any]]:
         posts_serialized = []
         for post in posts:
             post_serializer = SerializePost(post)
             text = post_serializer.serialize()
             images = post_serializer.get_images()
             link = post_serializer.generate_link()
-
             posts_serialized.append({'text': text, 'images': images, 'link': link, 'post_id': post.id})
 
+        return posts_serialized
+
+
+    async def send_response_to_user(self, posts: list[Post]):
+        serialized = self.generate_response_for_user(posts)
         data = {
-            'posts': posts_serialized,
+            'posts': serialized,
             'request_id': self.request_id,
             'user_uuid': self.user_uuid
         }
         async with RabbitMQPublisher() as publisher:
             await publisher.publish(routing_key='posts_service.generated_posts', payload=data)
-
-    async def get_average_price(self, lot: lot_pb2.Lot) -> int | None:
+    @classmethod
+    async def get_average_price(cls, lot: lot_pb2.Lot) -> int | None:
         async with ApiRpcClient() as client:
             year_from = None
             year_to = None

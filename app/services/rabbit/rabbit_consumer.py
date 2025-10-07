@@ -13,6 +13,7 @@ from app.database.schemas.request_filters import RequestFiltersCreate
 from app.services.ai_post_generation.generate_post import GeneratePost
 from app.services.ai_post_generation.post_serializer import SerializePost
 from app.services.ai_post_generation.types import Filters
+from app.services.generate_post_manually import process_post_manually
 from app.services.rabbit.consumer_base import RabbitBaseService
 from app.services.rabbit.rabbit_service import RabbitMQPublisher
 from app.services.rabbit.types import RabbitChatBotTextMessage, RabbitChatBotImageMessage
@@ -21,6 +22,7 @@ from app.services.rabbit.types import RabbitChatBotTextMessage, RabbitChatBotIma
 class PostsRoutingKeys(str, Enum):
     POSTS_GENERATE_WITH_FILTERS = "posts_bot.generate_post.with_filters"
     POSTS_PUBLISH_POST = "posts_bot.publish_post"
+    POST_GENERATE_MANUALLY = "posts_bot.generate_post.manually"
 
 
 
@@ -48,6 +50,15 @@ class RabbitPostsConsumer(RabbitBaseService):
                 generator = GeneratePost(Filters.model_validate(payload.get("filters", {})), request.id, payload.get("user_uuid"))
 
                 await generator.generate_post()
+
+        elif route == PostsRoutingKeys.POST_GENERATE_MANUALLY:
+            lot_id = payload.get("lot_id")
+            site = payload.get("site")
+            user_uuid = payload.get("user_uuid")
+            message_id = payload.get("message_id")
+            print(payload)
+            await process_post_manually(lot_id, site, user_uuid, message_id)
+
         elif route == PostsRoutingKeys.POSTS_PUBLISH_POST:
             post_id = payload.get("post_id")
             async with get_async_db() as db:
@@ -58,7 +69,7 @@ class RabbitPostsConsumer(RabbitBaseService):
                 text = serializer.serialize()
                 await RabbitMQPublisher().publish(
                     routing_key="posts_service.publish_post",
-                    payload={"text": text, 'images': post.images.split(',')}
+                    payload={"text": text, 'images': post.images.split(',')[:3]}
                 )
 
 
