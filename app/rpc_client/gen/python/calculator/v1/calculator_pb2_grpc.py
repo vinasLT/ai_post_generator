@@ -19,6 +19,11 @@ class CalculatorServiceStub(object):
                 request_serializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataRequest.SerializeToString,
                 response_deserializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataResponse.FromString,
                 _registered_method=True)
+        self.GetCalculatorWithDataBatch = channel.unary_unary(
+                '/calculator.v1.CalculatorService/GetCalculatorWithDataBatch',
+                request_serializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataBatchRequest.SerializeToString,
+                response_deserializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataBatchResponse.FromString,
+                _registered_method=True)
         self.GetCalculatorWithoutData = channel.unary_unary(
                 '/calculator.v1.CalculatorService/GetCalculatorWithoutData',
                 request_serializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithoutDataRequest.SerializeToString,
@@ -30,6 +35,12 @@ class CalculatorServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def GetCalculatorWithData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCalculatorWithDataBatch(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -48,6 +59,11 @@ def add_CalculatorServiceServicer_to_server(servicer, server):
                     servicer.GetCalculatorWithData,
                     request_deserializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataRequest.FromString,
                     response_serializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataResponse.SerializeToString,
+            ),
+            'GetCalculatorWithDataBatch': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCalculatorWithDataBatch,
+                    request_deserializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataBatchRequest.FromString,
+                    response_serializer=calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataBatchResponse.SerializeToString,
             ),
             'GetCalculatorWithoutData': grpc.unary_unary_rpc_method_handler(
                     servicer.GetCalculatorWithoutData,
@@ -82,6 +98,33 @@ class CalculatorService(object):
             '/calculator.v1.CalculatorService/GetCalculatorWithData',
             calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataRequest.SerializeToString,
             calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCalculatorWithDataBatch(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/calculator.v1.CalculatorService/GetCalculatorWithDataBatch',
+            calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataBatchRequest.SerializeToString,
+            calculator_dot_v1_dot_calculator__pb2.GetCalculatorWithDataBatchResponse.FromString,
             options,
             channel_credentials,
             insecure,

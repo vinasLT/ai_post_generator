@@ -1,11 +1,10 @@
 import ast
 import asyncio
-from typing import Any, Generator, AsyncGenerator, Coroutine
+from typing import Any, AsyncGenerator
 
 from dateutil import parser
 import grpc
-from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
-from sqlalchemy.ext.asyncio import AsyncSession
+
 
 from app.core.logger import logger, log_async_execution_time, async_timer
 from app.database.crud.post import PostService
@@ -18,7 +17,7 @@ from app.rpc_client.calculator import CalculatorRcpClient
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
 from app.rpc_client.gen.python.calculator.v1 import calculator_pb2
-from app.rpc_client.gen.python.calculator.v1.calculator_pb2 import GetCalculatorWithDataResponse
+from app.rpc_client.gen.python.calculator.v1.calculator_pb2 import GetCalculatorWithDataBatchResponse
 from app.services.ai_post_generation.ai_service import Transformers
 from app.services.ai_post_generation.post_serializer import SerializePost
 from app.services.ai_post_generation.types import Filters
@@ -57,22 +56,17 @@ class GeneratePost:
                 logger.warning(f'For lot: {lot.lot_id} data for calculator was not found (Rpc Request)',
                                extra={'error_code': str(e.code()), 'error_details': str(e.details())})
                 return None
-    @log_async_execution_time('Get calculator for lots')
-    async def get_calculators_for_lots(self, lots: list[lot_pb2.Lot]) -> list[tuple[lot_pb2.Lot, calculator_pb2.GetCalculatorWithDataResponse]]:
-        lots_with_calculators = []
 
-        async def get_calculator(lot: lot_pb2.Lot) -> None:
+    async def get_calculators_for_lots(self, lots: list[lot_pb2.Lot]) -> GetCalculatorWithDataBatchResponse:
+        async with CalculatorRcpClient() as client:
             try:
-                calculator = await self.get_calculator_for_lot(lot)
-                if calculator:
-                    lots_with_calculators.append((lot, calculator))
-            except Exception as e:
-                logger.error(f"Error getting calculator for lot {lot.lot_id}: {str(e)}")
+                response = await client.get_butch_calculators_with_data(lots)
+                return response
+            except grpc.aio.AioRpcError as e:
+                logger.warning(f'For lots: {lots} data for calculator was not found (Rpc Request)',
+                               extra={'error_code': str(e.code()), 'error_details': str(e.details())})
+                return []
 
-        tasks = [asyncio.create_task(get_calculator(lot)) for lot in lots]
-        await asyncio.gather(*tasks)
-
-        return lots_with_calculators
 
     async def process_repeated_posts(self, lots: list[lot_pb2.Lot]) -> list[lot_pb2.Lot]:
         async with get_async_db() as db:
@@ -84,33 +78,6 @@ class GeneratePost:
             logger.debug(f'First lot ID: {lots[0].lot_id}, type: {type(lots[0].lot_id)}')
             return self.exclude_lots_by_lot_ids(repeated_posts_lot_ids, lots)
 
-
-    @classmethod
-    async def create_post(cls, lot: lot_pb2.Lot, calculator: calculator_pb2.GetCalculatorWithDataResponse,
-                          request_id: int, db: AsyncSession, flush: bool = False, average_sell_price: int = None) -> Post | None:
-        post_service = PostService(db)
-        try:
-            post = await post_service.create(PostCreate(
-                lot_id=lot.lot_id,
-                auction=AuctionEnum(lot.base_site),
-                title=lot.title,
-                odometer=lot.odometer,
-                vin=lot.vin,
-                status=lot.status,
-                year=lot.year,
-                auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
-                delivery_price=calculator.data.calculator.transportation_price[0].price,
-                shipping_price=calculator.data.calculator.ocean_ship[0].price,
-                average_sell_price=average_sell_price,
-                request_id=request_id,
-                images=','.join(list(lot.link_img_hd)[:10])
-            ), flush=flush)
-        except Exception as e:
-            logger.error(f"Error processing lot {lot.lot_id} to DB: {e}")
-            return None
-        return post
-
-
     async def create_posts_batch(
             self,
             lots_with_calculators: list[tuple[lot_pb2.Lot, calculator_pb2.GetCalculatorWithDataResponse]]
@@ -118,12 +85,27 @@ class GeneratePost:
         processed_lots = []
 
         async with get_async_db() as db:
+            post_service = PostService(db)
+
             for lot_calculator_pair in lots_with_calculators:
                 lot, calculator = lot_calculator_pair
                 try:
-                    post = await self.create_post(lot, calculator, self.request_id, db, flush=True)
-                    if post:
-                        processed_lots.append(post)
+                    await post_service.create(PostCreate(
+                        lot_id=lot.lot_id,
+                        auction=AuctionEnum(lot.base_site),
+                        title=lot.title,
+                        odometer=lot.odometer,
+                        vin=lot.vin,
+                        status=lot.status,
+                        year=lot.year,
+                        auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
+                        delivery_price=calculator.data.calculator.transportation_price[0].price,
+                        shipping_price=calculator.data.calculator.ocean_ship[0].price,
+                        average_sell_price=None,
+                        request_id=self.request_id,
+                        images=','.join(list(lot.link_img_hd)[:10])
+                    ), flush=True)
+                    processed_lots.append(lot)
                 except Exception as e:
                     logger.error(f"Error processing lot {lot.lot_id} to DB: {e}")
 
@@ -135,13 +117,6 @@ class GeneratePost:
         async with get_async_db() as db:
             post_service = PostService(db)
             return await post_service.left_only_this_lot_ids(self.request_id, lot_ids)
-
-    async def process_lots_with_calculator_and_db(self, lots: list[lot_pb2.Lot]):
-        unique_lots = await self.process_repeated_posts(lots)
-        lots_with_calculator = await self.get_calculators_for_lots(unique_lots)
-
-        processed_lots = await self.create_posts_batch(lots_with_calculator)
-        return processed_lots
 
     @classmethod
     async def serialize_response_from_assistant(cls, response: dict[str, Any]) -> dict[str, Any]:
@@ -186,30 +161,26 @@ class GeneratePost:
                 excluded_lots.append(lot)
         return excluded_lots
 
-    @classmethod
-    def generate_response_for_user(cls, posts: list[Post])-> list[dict[str, Any]]:
+
+    async def send_response_to_user(self, posts: list[Post]):
         posts_serialized = []
         for post in posts:
             post_serializer = SerializePost(post)
             text = post_serializer.serialize()
             images = post_serializer.get_images()
             link = post_serializer.generate_link()
+
             posts_serialized.append({'text': text, 'images': images, 'link': link, 'post_id': post.id})
 
-        return posts_serialized
-
-
-    async def send_response_to_user(self, posts: list[Post]):
-        serialized = self.generate_response_for_user(posts)
         data = {
-            'posts': serialized,
+            'posts': posts_serialized,
             'request_id': self.request_id,
             'user_uuid': self.user_uuid
         }
         async with RabbitMQPublisher() as publisher:
             await publisher.publish(routing_key='posts_service.generated_posts', payload=data)
-    @classmethod
-    async def get_average_price(cls, lot: lot_pb2.Lot) -> int | None:
+
+    async def get_average_price(self, lot: lot_pb2.Lot) -> int | None:
         async with ApiRpcClient() as client:
             year_from = None
             year_to = None
@@ -398,8 +369,7 @@ class GeneratePost:
                                           f'request id: {self.request_id}')
             return None
 
-    async def _process_lots_with_ai(self, unique_lots, max_retries=3, retry_delay=2)-> tuple[list[Lot], list[tuple[
-        Lot, GetCalculatorWithDataResponse]] | None] | None:
+    async def _process_lots_with_ai(self, unique_lots: list[Lot], max_retries=3, retry_delay=2)-> tuple[list[Lot], GetCalculatorWithDataBatchResponse] | None:
         try:
             serialized_lots = Transformers.transform_lot_for_ai(unique_lots)
 
@@ -444,7 +414,7 @@ class GeneratePost:
                 lots_with_calculator = responses[0] if attempt == 0 else await self.get_calculators_for_lots(
                     unique_lots)
 
-            lots_from_calculator = [lot.lot_id for lot, calculator in lots_with_calculator]
+            lots_from_calculator = [int(calculator.lot_id) for calculator in lots_with_calculator.data]
 
             lots_from_ai_chooser = response_from_ai_chooser.get('lots', [])
             lot_ids = [lot.get('lot_id') for lot in lots_from_ai_chooser]
