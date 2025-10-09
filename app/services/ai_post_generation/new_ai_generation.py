@@ -7,7 +7,7 @@ from app.database.crud.request_filter import RequestFiltersService
 from app.database.db.session import get_async_db
 from app.database.enums import RequestStage
 from app.database.models import RequestFilters
-from app.database.schemas.request_filters import RequestFiltersCreate, RequestFiltersUpdate
+from app.database.schemas.request_filters import RequestFiltersCreate
 from app.rpc_client.auction_api import ApiRpcClient
 from app.rpc_client.calculator import CalculatorRcpClient
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
