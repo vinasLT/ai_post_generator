@@ -2,6 +2,9 @@ from enum import Enum
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.utils import BASE_DIR
+
+
 class Environment(str, Enum):
     DEVELOPMENT = "development"
     PRODUCTION = "production"
@@ -24,6 +27,8 @@ class Settings(BaseSettings):
     def enable_docs(self) -> bool:
         return self.ENVIRONMENT in [Environment.DEVELOPMENT]
 
+    OPENAI_API_KEY: str = ''
+
 
     # RabbitMQ
     RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
@@ -35,7 +40,7 @@ class Settings(BaseSettings):
     RCP_CALCULATOR_URL: str = 'localhost:50051'
     RPC_CHAT_BOT_URL: str = "localhost:50053"
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=f"{BASE_DIR}/.env")
 
 
 

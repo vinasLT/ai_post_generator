@@ -1,0 +1,4 @@
+You must choose 30 lots using your functions
+Firstly get first page by filters you got, then if function not return you right response try to change filters a little bit
+Then you need to get more detailed information about lot, especially about images so you call other function to get it (do not call it for more then 6 items per page)
+Then you analyze full info about lot with information about images and choose 30 best lots across few pages
