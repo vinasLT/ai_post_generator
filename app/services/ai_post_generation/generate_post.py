@@ -18,9 +18,9 @@ from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
 from app.rpc_client.gen.python.calculator.v1 import calculator_pb2
 from app.rpc_client.gen.python.calculator.v1.calculator_pb2 import GetCalculatorWithDataBatchResponse
-from app.services.ai_post_generation.ai_service import Transformers
+from app.services.agent.transformer import Transformers
 from app.services.ai_post_generation.post_serializer import SerializePost
-from app.services.ai_post_generation.types import Filters
+from app.services.agent.types import Filters
 from app.services.rabbit.rabbit_service import RabbitMQPublisher
 
 
@@ -371,7 +371,7 @@ class GeneratePost:
 
     async def _process_lots_with_ai(self, unique_lots: list[Lot], max_retries=3, retry_delay=2)-> tuple[list[Lot], GetCalculatorWithDataBatchResponse] | None:
         try:
-            serialized_lots = Transformers.transform_lot_for_ai(unique_lots)
+            serialized_lots = Transformers.transform_lots_for_ai(unique_lots)
 
             async with async_timer('get calculator and process lots with ai chooser'):
                 calculator_task = self.get_calculators_for_lots(unique_lots)

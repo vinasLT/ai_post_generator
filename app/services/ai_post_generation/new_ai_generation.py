@@ -11,7 +11,7 @@ from app.database.schemas.request_filters import RequestFiltersCreate
 from app.rpc_client.auction_api import ApiRpcClient
 from app.rpc_client.calculator import CalculatorRcpClient
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
-from app.services.ai_post_generation.types import Filters
+from app.services.agent.types import Filters
 
 
 class GeneratePosts:

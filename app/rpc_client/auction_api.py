@@ -8,7 +8,7 @@ from app.config import settings
 from app.core.logger import logger
 from app.rpc_client.base_client import BaseRpcClient, T
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
-from app.services.ai_post_generation.types import Filters
+from app.services.agent.types import Filters
 
 # Ensure generated proto packages (auction, carfax, payment) are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'gen', 'python'))
@@ -38,7 +38,8 @@ class ApiRpcClient(BaseRpcClient[lot_pb2_grpc.LotServiceStub]):
             size: int = 20,
             page: int = 1
         ) -> lot_pb2.GetCurrentLotsByFiltersResponse:
-
+        size = int(size)
+        page = int(page)
         data = lot_pb2.GetCurrentLotsByFiltersRequest(
             site=filters.site,
             make=filters.make,

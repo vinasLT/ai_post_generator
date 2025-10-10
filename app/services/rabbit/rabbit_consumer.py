@@ -1,4 +1,3 @@
-import ast
 import json
 from enum import Enum
 
@@ -6,18 +5,14 @@ from aio_pika.abc import AbstractIncomingMessage
 
 from app.core.logger import logger
 from app.database.crud.post import PostService
-from app.database.crud.request_filter import RequestFiltersService
-from app.database.db.session import get_async_db, get_db
+from app.database.db.session import get_async_db
 from app.database.schemas.post import PostUpdate
-from app.database.schemas.request_filters import RequestFiltersCreate
-from app.services.ai_post_generation.generate_post import GeneratePost
 from app.services.ai_post_generation.new_ai_generation import GeneratePosts
 from app.services.ai_post_generation.post_serializer import SerializePost
-from app.services.ai_post_generation.types import Filters
+from app.services.agent.types import Filters
 from app.services.generate_post_manually import process_post_manually
 from app.services.rabbit.consumer_base import RabbitBaseService
 from app.services.rabbit.rabbit_service import RabbitMQPublisher
-from app.services.rabbit.types import RabbitChatBotTextMessage, RabbitChatBotImageMessage
 
 
 class PostsRoutingKeys(str, Enum):

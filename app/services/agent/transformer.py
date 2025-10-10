@@ -1,5 +1,6 @@
 from typing import Any
 
+from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
 
 
@@ -25,7 +26,13 @@ class Transformers:
         )
 
     @classmethod
-    def transform_lot_for_ai(cls, lots: list[Lot]) -> str:
+    def generate_text_for_pagination(cls, pagination: lot_pb2.Pagination) -> str:
+        return (f'Page: {pagination.page} of {pagination.pages}\n'
+                f'Page size: {pagination.size}\n'
+                f'Available lots count: {pagination.count}')
+
+    @classmethod
+    def transform_lots_for_ai(cls, lots: list[Lot]) -> str:
         text = ''
 
         for idx, lot in enumerate(lots):

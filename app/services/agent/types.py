@@ -2,8 +2,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class Filters(BaseModel):
-    site: str | None = None
-    make: str | None = None
+    site: str
+    make: str
     model: str | None = None
     year_from: int | None = None
     year_to: int | None = None
