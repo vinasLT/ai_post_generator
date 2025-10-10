@@ -1,6 +1,7 @@
 from app.core.logger import logger
 from app.database.crud.request_filter import RequestFiltersService
 from app.database.db.session import get_async_db
+from app.database.enums import RequestStage
 from app.database.schemas.request_filters import RequestFiltersCreate
 from app.rpc_client.auction_api import ApiRpcClient
 from app.services.ai_post_generation.generate_post import GeneratePost
@@ -19,7 +20,7 @@ async def process_post_manually(lot_id: int, site: str, user_uuid: str, message_
         async with get_async_db() as db:
             filter_request_service = RequestFiltersService(db)
             request = await filter_request_service.create(RequestFiltersCreate(user_uuid=user_uuid, site=lot.base_site,
-                                                                               make=lot.make))
+                                                                               make=lot.make, stage=RequestStage.COMPLETED))
             average_sell_price = await GeneratePost.get_average_price(lot)
             print(average_sell_price)
             post = await GeneratePost.create_post(lot, calculator, request.id, db, average_sell_price=average_sell_price)

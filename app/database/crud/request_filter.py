@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from typing import Any, Coroutine, Sequence
+
+from sqlalchemy import select, Row, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.crud.base import BaseService
@@ -25,5 +27,17 @@ class RequestFiltersService(BaseService[RequestFilters, RequestFiltersCreate, Re
             await self.session.refresh(request_filter)
             return request_filter
         return None
+
+    async def get_last_request_for_user_uuid(self, user_uuid: str, limit: int = 1)-> RequestFilters | None | Sequence[
+        RequestFilters]:
+        stmt = (
+            select(RequestFilters)
+            .where(RequestFilters.user_uuid == user_uuid)
+            .order_by(RequestFilters.created_at.desc()).limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        if limit == 1:
+            return result.scalars().first()
+        return result.scalars().all()
 
 

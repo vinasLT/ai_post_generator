@@ -7,7 +7,7 @@ from app.core.logger import logger
 from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
 from app.database.schemas.post import PostUpdate
-from app.services.ai_post_generation.new_ai_generation import GeneratePosts
+from app.services.agent.run_post_generation_flow import run_post_generation_flow
 from app.services.ai_post_generation.post_serializer import SerializePost
 from app.services.agent.types import Filters
 from app.services.generate_post_manually import process_post_manually
@@ -36,8 +36,10 @@ class RabbitPostsConsumer(RabbitBaseService):
             return
 
         if route == PostsRoutingKeys.POSTS_GENERATE_WITH_FILTERS:
-            generator = GeneratePosts(Filters.model_validate(payload.get("filters", {})), payload.get("user_uuid"))
-            await generator.run()
+            filters = payload.get("filters")
+            user_uuid = payload.get("user_uuid")
+            editable_message_id = payload.get("editable_message_id")
+            await run_post_generation_flow(Filters(**filters), editable_message_id, user_uuid)
 
         elif route == PostsRoutingKeys.POST_GENERATE_MANUALLY:
             lot_id = payload.get("lot_id")

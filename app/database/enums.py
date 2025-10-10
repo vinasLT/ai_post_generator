@@ -6,8 +6,6 @@ class AuctionEnum(str, enum.Enum):
     IAAI = 'iaai'
 
 class RequestStage(str, enum.Enum):
-    STARTING = 'starting'
-    FILTERING_BY_TEXT = 'filtering_by_text'
-    GENERATION_IMAGES_DESCRIPTION = 'generation_images_description'
-    FILTERING_WITH_IMAGES_DESCRIPTION = 'filtering_with_images_description'
+    FAILED = 'failed'
+    IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'

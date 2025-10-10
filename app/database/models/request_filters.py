@@ -30,7 +30,7 @@ class RequestFilters(Base):
     auction_date_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     auction_date_to: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    stage: Mapped[str] = mapped_column(Enum(RequestStage),nullable=True)
+    stage: Mapped[RequestStage] = mapped_column(Enum(RequestStage),nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(UTC))
 

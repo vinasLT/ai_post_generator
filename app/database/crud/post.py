@@ -49,8 +49,12 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
         stmt = select(Post).where(Post.request_id == request_id)
         result = await self.session.execute(stmt)
         return result.scalars().all()
-
-    async def get_by_request_id_and_lot_id(self, request_id: int, lot_id: int) -> Sequence[Post]:
-        stmt = select(Post).where(Post.request_id == request_id, Post.lot_id == lot_id)
+    async def get_by_lot_id_and_request_id(self, lot_id: int, request_id: int) -> Post | None:
+        stmt = select(Post).where(Post.lot_id == lot_id, Post.request_id == request_id).limit(1)
         result = await self.session.execute(stmt)
-        return result.scalars().all()
+        return result.scalars().first()
+
+    async def get_by_request_id_and_lot_id(self, request_id: int, lot_id: int) -> Post | None:
+        stmt = select(Post).where(Post.request_id == request_id, Post.lot_id == lot_id).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
