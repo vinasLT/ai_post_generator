@@ -105,7 +105,10 @@ async def which_lots_repeated(**kwargs):
     print('which_lots_repeated')
     lot_ids = kwargs.get('lot_ids')
     user_uuid = kwargs.get('user_uuid')
+    editable_message_id = kwargs.get('editable_message_id')
     repeated_lot_ids = []
+
+    await edit_message_for_user(editable_message_id, f'🔍 Checking which lots Ive already sent you', user_uuid)
 
     async with get_async_db() as db:
         post_service = PostService(db)
