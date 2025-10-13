@@ -7,7 +7,7 @@ MAIN_AGENT_JSON_SCHEMA = {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
-                        "lot_ids": {"type": "array", "items": {"type": "number"}, "minItems": 25},
+                        "lot_ids": {"type": "array", "items": {"type": "number"}, "minItems": 25, "maxItems": 30},
                         "is_error": {"type": "boolean"},
                         "error_detail": {"type": ["string", "null"]}
                     },
