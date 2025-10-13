@@ -5,7 +5,7 @@ class SerializePost:
     def __init__(self, post: Post):
         self.post = post
 
-    def get_images(self, amount: int = 3):
+    def get_images(self, amount: int = 5):
         images = self.post.images.split(',')
         return images[:amount]
 
@@ -28,6 +28,7 @@ class SerializePost:
             f"📌 Pardavėjas: Draudimas 👍\n"
             f"📌 VIN: {self.post.vin}\n"
             f"📌 Būklė: {self.post.status}\n"
+            f"🔧 Pirminė žala: {self.post.primary_damage}\n"
             f"📌 Dokumentai: Tinka registracijai 👍\n"
             f"⏳ Aukcionas prasideda: {local_time if local_time else 'N/A'} (Vilnius)\n"
             f"🛳️ Transporto išlaidos sudarys:\n"

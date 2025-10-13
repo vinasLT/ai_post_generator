@@ -6,7 +6,8 @@ branch_labels = None
 depends_on = None
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE requeststage ADD VALUE IF NOT EXISTS 'IN_PROGRESS';")
+    if op.get_context().dialect.name == "postgresql":
+        op.execute("ALTER TYPE requeststage ADD VALUE IF NOT EXISTS 'IN_PROGRESS' AFTER 'COMPLETED';")
 
 def downgrade() -> None:
     pass

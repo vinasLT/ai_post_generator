@@ -97,6 +97,7 @@ class GeneratePost:
                 odometer=lot.odometer,
                 vin=lot.vin,
                 status=lot.status,
+                primary_damage=lot.damage_pr.upper() if lot.damage_pr else None,
                 year=lot.year,
                 auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
                 delivery_price=calculator.data.calculator.transportation_price[0].price,

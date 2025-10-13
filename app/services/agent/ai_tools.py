@@ -46,7 +46,7 @@ ai_tools = [
     {
         "type": "function",
         "name": "get_detailed_image_info",
-        "description": "Get detailed image description",
+        "description": "Get detailed image description, USE THIS FUNCTION ONLY AFTER which_lots_repeated",
         "parameters": {
             "type": "object",
             "properties": {
@@ -61,7 +61,7 @@ ai_tools = [
     {
       'type': 'function',
        'name': 'which_lots_repeated',
-       'description': 'Get lots that are user already saw',
+       'description': 'Get lots that are user already saw, USE THIS FUNCTION BEFORE get_detailed_image_info AND  BEFORE FINAL RESPONSE',
        'parameters': {
            'type': 'object',
            'properties': {
