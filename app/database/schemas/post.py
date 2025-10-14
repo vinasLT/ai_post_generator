@@ -21,6 +21,7 @@ class PostCreate(BaseModel):
     year: int
     image_description: str | None = None
     image_score: int | None = None
+    comment: str | None = None
     primary_damage: str | None = None
 
     request_id: int
@@ -41,6 +42,7 @@ class PostUpdate(BaseModel):
     average_sell_price: int | None = None
     image_description: str | None = None
     image_score: int | None = None
+    comment: str | None = None
     primary_damage: str | None = None
     is_posted: bool | None = None
 

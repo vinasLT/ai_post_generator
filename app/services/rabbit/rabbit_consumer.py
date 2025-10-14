@@ -1,3 +1,4 @@
+import base64
 import json
 from enum import Enum
 
@@ -8,9 +9,11 @@ from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
 from app.database.schemas.post import PostUpdate
 from app.services.agent.run_post_generation_flow import run_post_generation_flow
+from app.services.ai_post_generation.generate_post import GeneratePost
 from app.services.ai_post_generation.post_serializer import SerializePost
 from app.services.agent.types import Filters
 from app.services.generate_post_manually import process_post_manually
+from app.services.image_post_generator.generator import build_post
 from app.services.rabbit.consumer_base import RabbitBaseService
 from app.services.rabbit.rabbit_service import RabbitMQPublisher
 
@@ -19,6 +22,8 @@ class PostsRoutingKeys(str, Enum):
     POSTS_GENERATE_WITH_FILTERS = "posts_bot.generate_post.with_filters"
     POSTS_PUBLISH_POST = "posts_bot.publish_post"
     POST_GENERATE_MANUALLY = "posts_bot.generate_post.manually"
+    POST_GENERATE_MANUALLY_ADD_COMMENT = "posts_bot.generate_post.manually.add_comment"
+    POST_GENERATE_MANUALLY_IMAGE = "posts_bot.generate_post.manually.generate_image"
 
 
 
@@ -40,6 +45,50 @@ class RabbitPostsConsumer(RabbitBaseService):
             user_uuid = payload.get("user_uuid")
             editable_message_id = payload.get("editable_message_id")
             await run_post_generation_flow(Filters(**filters), editable_message_id, user_uuid)
+
+        elif route == PostsRoutingKeys.POST_GENERATE_MANUALLY_IMAGE:
+            post_id = payload.get("post_id")
+            editable_message_id = payload.get("editable_message_id")
+            user_uuid = payload.get("user_uuid")
+            async with get_async_db() as db:
+                post_service = PostService(db)
+                post = await post_service.get(post_id)
+                images = post.images.split(',')
+                text = SerializePost(post).serialize(for_image=True)
+                image = build_post(images[:3], text, font_size=30, line_h=40)
+                await RabbitMQPublisher().publish(
+                    routing_key="posts_service.image_generated",
+                    payload={"image": base64.b64encode(image).decode("ascii"), 'message_id': editable_message_id,
+                             'post_id': post_id, 'user_uuid': user_uuid, 'request_id': post.request_id,}
+                )
+
+
+
+
+        elif route == PostsRoutingKeys.POST_GENERATE_MANUALLY_ADD_COMMENT:
+            post_id = payload.get("post_id")
+            comment = payload.get('comment')
+            user_uuid = payload.get('user_uuid')
+            editable_message_id = payload.get('editable_message_id')
+            async with get_async_db() as db:
+                post_service = PostService(db)
+                post = await post_service.get(post_id)
+                await post_service.update(post_id, PostUpdate(comment=comment))
+                serialized = GeneratePost.generate_response_for_user([post])
+
+                data = {
+                    'posts': serialized,
+                    'request_id': post.request_id,
+                    'message_id': editable_message_id,
+                    'user_uuid': user_uuid
+                }
+
+                async with RabbitMQPublisher() as publisher:
+                    await publisher.publish(routing_key='posts_service.manually_generated_post', payload=data)
+
+
+
+
 
         elif route == PostsRoutingKeys.POST_GENERATE_MANUALLY:
             lot_id = payload.get("lot_id")

@@ -39,6 +39,8 @@ class Post(Base):
 
     images: Mapped[str] = mapped_column(nullable=False)
 
+    comment: Mapped[str] = mapped_column(nullable=True)
+
     request_id: Mapped[int] = mapped_column(ForeignKey('request_filters.id'), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(UTC))

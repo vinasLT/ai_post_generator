@@ -12,14 +12,14 @@ class SerializePost:
     def generate_link(self):
         return f"https://bidauto.online/lot/{self.post.lot_id}?auction_name={self.post.auction.upper()}"
 
-    def serialize(self):
+    def serialize(self, for_image: bool = False):
         local_time = None
         if self.post.auction_date:
             vilnius_tz = pytz.timezone('Europe/Vilnius')
             local_time = self.post.auction_date.astimezone(vilnius_tz)
             local_time = local_time.strftime('%d.%m.%Y %H:%M')
         text = (
-            f"🔗 <a href=\"{self.generate_link()}\">Atidaryti bidauto.online</a>\n\n"
+            f"{'🔗 <a href=\"{self.generate_link()}\">Atidaryti bidauto.online</a>\n\n' if not for_image else ''}"
             f"📲 Susisiekite: https://t.me/bidautoLT\n"
             f"🚗🔥 Labai geras pasiūlymas aukcione! 🔥🚗\n"
             f"🚗 <b>{self.post.title}</b>\n"
@@ -43,5 +43,6 @@ class SerializePost:
             f"⏳ Liko mažai laiko – nepraleiskite progos! ⏳💨\n"
             f"💸 VIDUTINĖ pardavimo kaina: ${self.post.average_sell_price if self.post.average_sell_price else 'N/A'}\n"
             f"✉️ Rašykite mums DM arba apsilankykite 👉 bidauto.online\n\n"
+            f"{f'<b>{self.post.comment}</b>' if self.post.comment else ''}"
         )
         return text
