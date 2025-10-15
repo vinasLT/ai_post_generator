@@ -19,7 +19,7 @@ class SerializePost:
             local_time = self.post.auction_date.astimezone(vilnius_tz)
             local_time = local_time.strftime('%d.%m.%Y %H:%M')
         text = (
-            f"{'🔗 <a href=\"{self.generate_link()}\">Atidaryti bidauto.online</a>\n\n' if not for_image else ''}"
+            f"{f'🔗 <a href=\"{self.generate_link()}\">Atidaryti bidauto.online</a>\n\n' if not for_image else ''}"
             f"📲 Susisiekite: https://t.me/bidautoLT\n"
             f"🚗🔥 Labai geras pasiūlymas aukcione! 🔥🚗\n"
             f"🚗 <b>{self.post.title}</b>\n"
