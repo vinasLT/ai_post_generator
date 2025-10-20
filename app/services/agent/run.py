@@ -71,8 +71,7 @@ class RunAgent:
     async def run_agent_async(self, prompt: str) -> tuple[str, list[Lot]]:
         response = await openai_client.responses.create(
             model=self.MODEL,
-            text={**MAIN_AGENT_JSON_SCHEMA, "verbosity": "low"},
-            reasoning={"effort": "low"},
+            text=MAIN_AGENT_JSON_SCHEMA,
             instructions=get_instructions('main_agent.txt'),
             input=prompt,
             tools=ai_tools,
@@ -85,8 +84,7 @@ class RunAgent:
                 return response.output_text, self.lots
             response = await openai_client.responses.create(
                 model=self.MODEL,
-                text={**MAIN_AGENT_JSON_SCHEMA, "verbosity": "low"},
-                reasoning={"effort": "medium"},
+                text=MAIN_AGENT_JSON_SCHEMA,
                 input=outputs,
                 previous_response_id=response.id,
                 tools=ai_tools,
