@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from app.core.utils import BASE_DIR
+from app.core.logger import logger
 from app.database.crud.post import PostService
 from app.database.crud.request_filter import RequestFiltersService
 from app.database.db.session import get_async_db
@@ -36,10 +36,13 @@ ai_tools = [
                 "document": {"type": ["string", "null"], "enum": ["Salvage", "Clean", None]},
                 "transmission": {"type": ["string", "null"], "enum": ["Automatic", "Manual", None]},
                 "status": {"type": ["string", "null"], "enum": ["Run & Drive", "Starts", "Stationary", None]},
+                'drive': {"type": ["string", "null"], "enum": ["Front Wheel Drive", "Rear Wheel Drive", 'All Wheel Drive', None]},
                 "auction_date_from": {"type": ["string", "null"], "format": "date-time", 'description': 'Date from which auction started (change only when you really need it), format: 2025-10-31'},
                 "auction_date_to": {"type": ["string", "null"], "format": "date-time", 'description': 'Date to which auction started (change only when you really need it), format: 2025-10-31'},
+
+                'describe_action': {'type': 'string', 'description': 'Describe what you want to do in one sentence'},
             },
-            "required": ["site", "make", "page"],
+            "required": ["site", "make", "page", 'describe_action'],
             "additionalProperties": False
         }
     },
@@ -51,9 +54,10 @@ ai_tools = [
             "type": "object",
             "properties": {
                 "lot_id": {"type": "string", 'description': 'Lot ID of vehicle'},
-                "auction": {"type": "string", 'description': 'Auction of vehicle', "enum": auction_values}
+                "auction": {"type": "string", 'description': 'Auction of vehicle', "enum": auction_values},
+                'describe_action': {'type': 'string', 'description': 'Describe what you want to do in one sentence'},
             },
-            'required': ['lot_id', 'auction'],
+            'required': ['lot_id', 'auction', 'describe_action'],
             'additionalProperties': False,
         }
     },
@@ -65,9 +69,10 @@ ai_tools = [
        'parameters': {
            'type': 'object',
            'properties': {
-               "lot_ids": {"type": "array", "items": {"type": "number"}, 'description': 'Lot IDs of vehicle that you choose'},
+                "lot_ids": {"type": "array", "items": {"type": "number"}, 'description': 'Lot IDs of vehicle that you choose'},
+                'describe_action': {'type': 'string', 'description': 'Describe what you want to do in one sentence'},
            },
-           'required': ['lot_ids'],
+           'required': ['lot_ids', 'describe_action'],
        }
     }
 ]
@@ -89,31 +94,44 @@ async def get_page_of_lots(**kwargs):
     filters = Filters(**kwargs)
     page = kwargs.get('page', 1)
     editable_message_id = kwargs.get('editable_message_id')
+    action_description = kwargs.get('describe_action')
     user_uuid = kwargs.get('user_uuid')
-    await edit_message_for_user(editable_message_id, f'🔍 Getting lots for page: {page}', user_uuid)
+    await edit_message_for_user(editable_message_id, action_description, user_uuid)
 
     async with ApiRpcClient() as client:
         response = await client.get_current_lots_with_filters(filters, page=page)
 
-    lots_serialized = Transformers.transform_lots_for_ai(response.lot)
+    lot_ids = [lot.lot_id for lot in response.lot]
+
+    repeated_lot_ids = await get_repeated_lots(lot_ids, user_uuid)
+
+    if len(repeated_lot_ids) == 20:
+        logger.warning(f'No unique lots found for filters: {filters}')
+        return 'Found 20 lots but you already sent them, try to change page number'
+
+    unique_lots = []
+    for lot in response.lot:
+        if lot.lot_id not in repeated_lot_ids:
+            unique_lots.append(lot)
+
+    if len(unique_lots) == 0:
+        logger.warning(f'No unique! lots found for filters: {filters}')
+        return 'Found 20 lots but you already sent them, try to change page number'
+
+
+    lots_serialized = Transformers.transform_lots_for_ai(unique_lots)
 
     response_text = (f'Pagination: {Transformers.generate_text_for_pagination(response.pagination)}\n\n'
                      f'Response: {lots_serialized}')
     return response_text, response.lot
 
-async def which_lots_repeated(**kwargs):
-    print('which_lots_repeated')
-    lot_ids = kwargs.get('lot_ids')
-    user_uuid = kwargs.get('user_uuid')
-    editable_message_id = kwargs.get('editable_message_id')
+
+async def get_repeated_lots(lot_ids: list[int], user_uuid: str):
     repeated_lot_ids = []
-
-    await edit_message_for_user(editable_message_id, f'🔍 Checking which lots Ive already sent you', user_uuid)
-
     async with get_async_db() as db:
         post_service = PostService(db)
         request_filter_service = RequestFiltersService(db)
-        filter_request = await request_filter_service.get_last_request_for_user_uuid(user_uuid, 5)
+        filter_request = await request_filter_service.get_last_request_for_user_uuid(user_uuid, 10)
         if filter_request:
             for request in filter_request:
                 if request.stage == RequestStage.COMPLETED:
@@ -121,18 +139,36 @@ async def which_lots_repeated(**kwargs):
                         lots = await post_service.get_by_lot_id_and_request_id(lot_id, request.id)
                         if lots:
                             repeated_lot_ids.append(lot_id)
+    return repeated_lot_ids
 
-        return f'You need to replace lot IDs: {repeated_lot_ids}'
+async def which_lots_repeated(**kwargs):
+    lot_ids = kwargs.get('lot_ids')
+    user_uuid = kwargs.get('user_uuid')
+    action_description = kwargs.get('describe_action')
+    editable_message_id = kwargs.get('editable_message_id')
+    repeated_lot_ids = await get_repeated_lots(lot_ids, user_uuid)
+
+    await edit_message_for_user(editable_message_id, action_description, user_uuid)
+
+    return f'You need to replace lot IDs: {repeated_lot_ids}'
 
 async def get_detailed_image_info(**kwargs):
     lot_id: int = int(kwargs.get('lot_id'))
     lots: list[Lot] = kwargs.get('lots')
     left_lot = choose_lot_ids_from_lots(lots, [lot_id])
     editable_message_id = kwargs.get('editable_message_id')
+    action_description = kwargs.get('describe_action')
     user_uuid = kwargs.get('user_uuid')
     lot = left_lot[0]
-    await edit_message_for_user(editable_message_id, f'🔍 Analyzing image for lot: #{lot_id}\n'
-                                                     f'Title: {lot.title}\n', user_uuid)
+    logger.debug(f'Analyzing images for lot: {lot_id}')
+    await edit_message_for_user(editable_message_id, action_description, user_uuid)
+
+    repeated_lot_id = await get_repeated_lots([lot_id], user_uuid)
+
+    if repeated_lot_id:
+        return f'You need to replace lot ID, this lot was sent before, DO NOT USE IT: {repeated_lot_id}'
+
+
 
 
     image_urls =lot.link_img_hd
@@ -155,12 +191,17 @@ async def get_detailed_image_info(**kwargs):
     print(serialized)
     return serialized
 
-def choose_lot_ids_from_lots(lots: list[Lot], lot_ids: list[int])-> list[Lot]:
-    left_lots = []
+
+def choose_lot_ids_from_lots(lots: list[Lot], lot_ids: list[int]) -> list[Lot]:
+    allowed_ids = set(lot_ids)
+    seen_ids = set()
+    result = []
     for lot in lots:
-        if lot.lot_id in lot_ids:
-            left_lots.append(lot)
-    return left_lots
+        lot_id = lot.lot_id
+        if lot_id in allowed_ids and lot_id not in seen_ids:
+            result.append(lot)
+            seen_ids.add(lot_id)
+    return result
 
 tool_mapping = {
     'get_page_of_lots': get_page_of_lots,

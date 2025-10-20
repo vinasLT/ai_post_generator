@@ -33,8 +33,9 @@ async def run_post_generation_flow(filters: Filters, editable_message_id: str, u
         logger.info("agent_run:start", extra={"user_uuid": user_uuid, "request_id": request.id})
         agent = RunAgent(editable_message_id, user_uuid)
         response, lots = await agent.run_agent_async(start_prompt)
-        logger.info("agent_run:finished", extra={"user_uuid": user_uuid, "request_id": request.id, "lots_count": len(lots) if lots else 0})
         jsoned_response = json.loads(response)
+        logger.info("agent_run:finished", extra={"user_uuid": user_uuid, "request_id": request.id, "lots_count": len(lots) if lots else 0, 'chose_lot_ids': jsoned_response.get('lot_ids', '')})
+
         is_error = jsoned_response.get("is_error")
         error_detail = jsoned_response.get("error_detail")
         if is_error:

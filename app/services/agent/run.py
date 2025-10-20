@@ -34,8 +34,9 @@ class RunAgent:
                                                   editable_message_id=self.editable_message_id,
                                                   user_uuid=self.user_uuid)
                 if fn == get_page_of_lots:
-                    self.lots.extend(res[1])
-                    res = res[0]
+                    if isinstance(res, tuple):
+                        self.lots.extend(res[1])
+                        res = res[0]
 
                 out = res
             except Exception as e:
@@ -68,16 +69,29 @@ class RunAgent:
 
     @log_async_execution_time('Run agent')
     async def run_agent_async(self, prompt: str) -> tuple[str, list[Lot]]:
+        response = await openai_client.responses.create(
+            model=self.MODEL,
+            text={**MAIN_AGENT_JSON_SCHEMA, "verbosity": "low"},
+            reasoning={"effort": "low"},
+            instructions=get_instructions('main_agent.txt'),
+            input=prompt,
+            tools=ai_tools,
+            parallel_tool_calls=True,
+        )
 
-        response = await openai_client.responses.create(model=self.MODEL, text=MAIN_AGENT_JSON_SCHEMA, instructions=get_instructions('main_agent.txt'),
-                                                 input=prompt, tools=ai_tools, parallel_tool_calls=True)
         while True:
             outputs = await self.collect_outputs_async(response)
             if not outputs:
                 return response.output_text, self.lots
-            response = await openai_client.responses.create(model=self.MODEL, text=MAIN_AGENT_JSON_SCHEMA, input=outputs,
-                                                     previous_response_id=response.id, tools=ai_tools,
-                                                     parallel_tool_calls=True)
+            response = await openai_client.responses.create(
+                model=self.MODEL,
+                text={**MAIN_AGENT_JSON_SCHEMA, "verbosity": "low"},
+                reasoning={"effort": "medium"},
+                input=outputs,
+                previous_response_id=response.id,
+                tools=ai_tools,
+                parallel_tool_calls=True,
+            )
 
 
 if __name__ == "__main__":
