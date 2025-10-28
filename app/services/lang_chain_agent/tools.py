@@ -15,7 +15,6 @@ from app.rpc_client.auction_api import ApiRpcClient
 from app.services.agent.ai_tools import get_repeated_lots
 from app.services.agent.transformer import Transformers
 from app.services.agent.types import Filters
-from app.config import settings
 
 DocumentEnum = Literal["Salvage", "Clean"]
 Auctions = Literal["copart", "iaai"]
