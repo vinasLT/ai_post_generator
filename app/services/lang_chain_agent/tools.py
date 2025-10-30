@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Literal, Optional, Any, List, TypedDict
 from typing_extensions import Annotated
 import operator
@@ -24,7 +25,7 @@ DriveEnum = Literal["Front Wheel Drive", "Rear Wheel Drive", "All Wheel Drive"]
 
 class GetPageOfLotsInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    page: int = Field(1, ge=1, le=10, description="Page number")
+    page: int = Field(1, ge=1, description="Page number")
     site: Auctions = Field(..., description="Auction site identifier from allowed values")
     make: str = Field(..., description="Vehicle make")
     model: Optional[str] = Field(None, description="Vehicle model or null")
@@ -38,7 +39,6 @@ class GetPageOfLotsInput(BaseModel):
     drive: Optional[DriveEnum] = Field(None, description="Front Wheel Drive, Rear Wheel Drive, All Wheel Drive, or null")
     auction_date_from: Optional[str] = Field(None, description="Date from which auction started (change only when you really need it), format: 2025-10-31")
     auction_date_to: Optional[str] = Field(None, description="Date to which auction started (change only when you really need it), format: 2025-10-31")
-    describe_action: str = Field(..., description="Describe what you want to do in one sentence")
 
     @field_validator("auction_date_from", "auction_date_to")
     @classmethod
@@ -51,9 +51,9 @@ class GetPageOfLotsInput(BaseModel):
 def make_get_page_of_lots(user_uuid: str):
     @tool(args_schema=GetPageOfLotsInput)
     async def get_page_of_lots(
-        page: int,
         site: str,
         make: str,
+        page: int = 1,
         model: Optional[str] = None,
         year_from: Optional[int] = None,
         year_to: Optional[int] = None,
@@ -65,8 +65,7 @@ def make_get_page_of_lots(user_uuid: str):
         drive: Optional[str] = None,
         auction_date_from: Optional[str] = None,
         auction_date_to: Optional[str] = None,
-        describe_action: str = ""
-    ) -> dict:
+    ) -> str:
         """Get auction lots by filters. Return up to 20 lots per page."""
 
         filters = Filters(site=site, make=make, model=model, year_from=year_from, year_to=year_to, odo_from=odo_from, odo_to=odo_to, document=document, transmission=transmission, status=status, drive=drive, auction_date_from=auction_date_from, auction_date_to=auction_date_to)
@@ -92,3 +91,9 @@ def make_get_page_of_lots(user_uuid: str):
 class AppState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     user_uuid: str
+
+
+def get_instructions(filename: str):
+    instructions_folder = Path(__file__).parent / 'instructions'
+    with open(instructions_folder / filename, 'r', encoding='utf-8') as f:
+        return f.read()

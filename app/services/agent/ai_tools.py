@@ -82,10 +82,7 @@ async def edit_message_for_user(message_id: str, text: str, user_uuid: str):
         await publisher.publish(routing_key='posts_service.update_message',
                                 payload={'message': text, 'message_id': message_id, 'user_uuid': user_uuid})
 
-def get_instructions(filename: str):
-    instructions_folder = Path(__file__).parent / 'instructions'
-    with open(instructions_folder / filename, 'r', encoding='utf-8') as f:
-        return f.read()
+
 
 
 
