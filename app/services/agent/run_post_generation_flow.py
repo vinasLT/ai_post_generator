@@ -20,7 +20,7 @@ async def run_post_generation_flow(filters: Filters, editable_message_id: str, u
     logger.info("run_post_generation_flow:start", extra={"user_uuid": user_uuid, "editable_message_id": editable_message_id, "filters": filters.model_dump()})
     async with get_async_db() as db:
         filter_service = RequestFiltersService(db)
-        last_request = await filter_service.get_last_request_for_user_uuid(user_uuid)
+        last_request = await filter_service.get_previous_request_for_user_uuid(user_uuid)
         if not last_request or last_request.stage in (RequestStage.FAILED, RequestStage.COMPLETED):
             request = await filter_service.create(RequestFiltersCreate(site=filters.site, make=filters.make, user_uuid=user_uuid, model=filters.model, year_from=filters.year_from, year_to=filters.year_to, odo_from=filters.odo_from, odo_to=filters.odo_to, document=filters.document, transmission=filters.transmission, status=filters.status, auction_date_from=filters.auction_date_from, auction_date_to=filters.auction_date_to, stage=RequestStage.IN_PROGRESS))
             logger.info("request_created", extra={"request_id": request.id, "user_uuid": user_uuid})

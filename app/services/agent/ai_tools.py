@@ -123,20 +123,7 @@ async def get_page_of_lots(**kwargs):
     return response_text, response.lot
 
 
-async def get_repeated_lots(lot_ids: list[int], user_uuid: str):
-    repeated_lot_ids = []
-    async with get_async_db() as db:
-        post_service = PostService(db)
-        request_filter_service = RequestFiltersService(db)
-        filter_request = await request_filter_service.get_last_request_for_user_uuid(user_uuid, 10)
-        if filter_request:
-            for request in filter_request:
-                if request.stage == RequestStage.COMPLETED:
-                    for lot_id in lot_ids:
-                        lots = await post_service.get_by_lot_id_and_request_id(lot_id, request.id)
-                        if lots:
-                            repeated_lot_ids.append(lot_id)
-    return repeated_lot_ids
+
 
 async def which_lots_repeated(**kwargs):
     lot_ids = kwargs.get('lot_ids')

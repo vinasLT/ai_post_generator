@@ -28,16 +28,26 @@ class RequestFiltersService(BaseService[RequestFilters, RequestFiltersCreate, Re
             return request_filter
         return None
 
-    async def get_last_request_for_user_uuid(self, user_uuid: str, limit: int = 1)-> RequestFilters | None | Sequence[
-        RequestFilters]:
+    async def get_previous_request_for_user_uuid(
+        self,
+        user_uuid: str,
+        request_id: int | None = None,
+        limit: int | None = 1,
+    ) -> RequestFilters | None | Sequence[RequestFilters]:
         stmt = (
             select(RequestFilters)
             .where(RequestFilters.user_uuid == user_uuid)
-            .order_by(RequestFilters.created_at.desc()).limit(limit)
+            .order_by(RequestFilters.created_at.desc())
         )
+
+        if request_id is not None:
+            stmt = stmt.where(RequestFilters.id != request_id)
+
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
         result = await self.session.execute(stmt)
         if limit == 1:
             return result.scalars().first()
         return result.scalars().all()
-
 
