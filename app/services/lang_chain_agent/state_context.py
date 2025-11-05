@@ -19,7 +19,7 @@ class AgentsState(TypedDict, total=False):
     lot_chooser_result: AgentResult | None
     best_picked_lots: BaseModel | None
 
-    lots_images_descriptions: ImageProcessingResult | None
+    lots_images_descriptions: list[ImageProcessingResult] | None
 
 
 class AgentsRuntimeContext(TypedDict):

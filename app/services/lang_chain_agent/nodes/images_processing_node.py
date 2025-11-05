@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from asyncio import Semaphore
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -68,7 +68,7 @@ async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRun
     tasks = [asyncio.create_task(analyze_post(post)) for post in posts]
     await asyncio.gather(*tasks)
 
-    ai_msg = AIMessage(content=str(results))
+    ai_msg = AIMessage(content=str([result.model_dump_json() for result in results]))
     return {"lots_images_descriptions": results, "messages": [ai_msg]}
 
 class DummyRuntime:
