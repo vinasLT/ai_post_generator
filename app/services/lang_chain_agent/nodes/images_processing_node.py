@@ -33,10 +33,11 @@ image_processing_prompt = ChatPromptTemplate.from_messages(
 
 async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> Dict[str, Any]:
     request_id = runtime.context["request_id"]
+    chose_lot_ids = state.get("chose_lot_ids", [])
 
     async with get_async_db() as db:
         posts_service = PostService(db)
-        posts = await posts_service.get_by_request_id(request_id)
+        posts = await posts_service.get_posts_by_lot_ids(chose_lot_ids, request_id)
 
     semaphore = Semaphore(10)
     results: list[ImageProcessingResult] = []
@@ -69,7 +70,8 @@ async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRun
     await asyncio.gather(*tasks)
 
     ai_msg = AIMessage(content=str([result.model_dump_json() for result in results]))
-    return {"lots_images_descriptions": results, "messages": [ai_msg]}
+    return {"lots_images_descriptions": results, "messages": [ai_msg],
+            'cumulated_images_description': results + state.get('cumulated_images_description', [])}
 
 class DummyRuntime:
     def __init__(self, context: dict[str, Any]):

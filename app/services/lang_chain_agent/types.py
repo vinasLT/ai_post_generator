@@ -16,5 +16,7 @@ class Filters(BaseModel):
     auction_date_from: str | None = None
     auction_date_to: str | None = None
 
+    auction_time: str | None = None
+
     model_config = ConfigDict(extra='ignore')
 

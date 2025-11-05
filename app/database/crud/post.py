@@ -51,6 +51,11 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
 
         return posts_to_keep
 
+    async def get_posts_by_lot_ids(self, lot_ids: list[int], request_id: int) -> Sequence[Post]:
+        stmt = select(Post).where(Post.lot_id.in_(lot_ids), Post.request_id == request_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def get_by_request_id(self, request_id: int) -> Sequence[Post]:
         stmt = select(Post).where(Post.request_id == request_id)
         result = await self.session.execute(stmt)

@@ -8,7 +8,7 @@ from app.config import settings
 from app.core.logger import logger
 from app.rpc_client.base_client import BaseRpcClient, T
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
-from app.services.agent.types import Filters
+from app.services.lang_chain_agent.types import Filters
 
 # Ensure generated proto packages (auction, carfax, payment) are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'gen', 'python'))

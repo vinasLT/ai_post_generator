@@ -4,7 +4,7 @@ from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
 
 
-class Transformers:
+class Serializer:
 
     @classmethod
     def generate_text_for_lot(cls, lot: Lot) -> str:

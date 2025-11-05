@@ -3,17 +3,18 @@ from pathlib import Path
 from typing import Literal, Optional, Annotated
 
 from langchain.tools import tool, ToolRuntime
-from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 
-from pydantic import field_validator, BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from app.core.logger import logger
 from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
 from app.rpc_client.auction_api import ApiRpcClient
-from app.services.agent.transformer import Transformers
-from app.services.agent.types import Filters
+from app.services.lang_chain_agent.serializer import Serializer
 from app.services.lang_chain_agent.state_context import AgentsRuntimeContext
+from app.services.lang_chain_agent.types import Filters
 from app.services.lang_chain_agent.utils import get_repeated_lots, get_calculators_for_lots
 
 DocumentEnum = Literal["Salvage", "Clean"]
@@ -42,7 +43,7 @@ async def get_page_of_lots(
     auction_date_to: Optional[str] = None,
     *,
     runtime: ToolRuntime[AgentsRuntimeContext],
-) -> str:
+) -> Command:
 
 
     """
@@ -103,11 +104,14 @@ async def get_page_of_lots(
     repeated_lot_ids = await get_repeated_lots(lot_ids, user_uuid, request_id)
     repeated_lot_ids_set = set(repeated_lot_ids)
 
+    error_message = (
+        f"Found 20 lots but you already sent them, try to change page number to {page + 1}, "
+        f"if there is no new lots for long time try page for example {page + 5} or even more"
+    )
+
     if lot_ids and all(lot_id in repeated_lot_ids_set for lot_id in lot_ids):
         logger.warning(f"No unique lots found for filters: {filters}")
-        return (f"Found 20 lots but you already sent them, try to change page number to {page+1}, "
-                f"if there is no new lots for long time try page for example 10 or even more")
-
+        return error_message
     unique_lots = []
     seen_lot_ids: set[int] = set()
     for lot in response.lot:
@@ -118,7 +122,7 @@ async def get_page_of_lots(
 
     if not unique_lots:
         logger.warning(f"No unique lots found for filters: {filters}")
-        return "Found 20 lots but you already sent them, try to change page number"
+        return error_message
 
     async with get_async_db() as db:
         post_service = PostService(db)
@@ -128,7 +132,7 @@ async def get_page_of_lots(
 
         if not fresh_lots:
             logger.warning(f"All fetched lots are already saved for current request: {request_id}")
-            return "Found 20 lots but you already sent them, try to change page number"
+            return error_message
 
         lots_with_calculator = await get_calculators_for_lots(fresh_lots)
         if lots_with_calculator:
@@ -136,10 +140,20 @@ async def get_page_of_lots(
         else:
             logger.warning(f"Calculator data missing for all lots in current batch, request_id={request_id}")
 
-    lots_serialized = Transformers.transform_lots_for_ai(fresh_lots)
-    response_text = (f"Pagination: {Transformers.generate_text_for_pagination(response.pagination)}\n\n"
-                     f"Response: {lots_serialized}")
-    return response_text
+    lots_serialized = Serializer.transform_lots_for_ai(fresh_lots)
+
+    response_text = (f"Pagination: {Serializer.generate_text_for_pagination(response.pagination)}\n\n"
+                     f"Response: {lots_serialized}\n"
+                     f"{'Request next page to got more lots' if len(unique_lots) <= 5 else ''}")
+    return Command(
+        update={
+            "lots_from_search": fresh_lots + runtime.state.get("lots_from_search", []),
+            "messages": [ToolMessage(
+                response_text,
+                tool_call_id=runtime.tool_call_id
+            )]
+        }
+    )
 
 def get_instructions(filename: str):
     instructions_folder = Path(__file__).parent / 'instructions'

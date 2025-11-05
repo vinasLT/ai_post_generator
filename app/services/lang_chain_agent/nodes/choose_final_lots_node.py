@@ -5,7 +5,6 @@ from langgraph.runtime import Runtime
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.services.lang_chain_agent.schemas import AgentResult
 from app.services.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
 from app.services.lang_chain_agent.tools import get_instructions
 
@@ -27,13 +26,13 @@ choose_final_lots_prompt = ChatPromptTemplate.from_messages(
 llm = ChatOpenAI(model='gpt-5-mini', reasoning_effort='medium', api_key=settings.OPENAI_API_KEY, use_responses_api=True)
 
 async def choose_final_lots_node(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> AgentsState:
-    image_descriptions = state['lots_images_descriptions']
-    lot_chooser_result = state['lot_chooser_result']
+    image_descriptions = state['cumulated_images_description']
+    lot_chooser_result = state['cumulated_lots']
     final_agent_messages = state.get('final_agent_messages', [])
 
     descriptions_for_lots_raw = []
     for img_desc in image_descriptions:
-        for lot in lot_chooser_result.lots:
+        for lot in lot_chooser_result:
             if lot.lot_id == img_desc.lot_id:
                 descriptions_for_lots_raw.append(
                     f"# Lot ID: {lot.lot_id}\n"

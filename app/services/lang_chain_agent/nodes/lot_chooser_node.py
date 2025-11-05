@@ -9,6 +9,8 @@ from langgraph.runtime import Runtime
 from pydantic import BaseModel
 
 from app.config import settings
+from app.database.crud.post import PostService
+from app.database.db.session import get_async_db
 
 from app.services.lang_chain_agent.schemas import get_agent_result_parser, AgentResult
 from app.services.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
@@ -36,7 +38,7 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
 
     is_need_more_lots = state.get('is_need_more_lots')
     if is_need_more_lots:
-        min_lots = state.get('lots_needed', 5)
+        min_lots = state.get('lots_needed', 5) + 2
         max_lots = state.get('lots_needed', 5) + 5
 
 
@@ -71,7 +73,22 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
         try:
             parsed: AgentResult = await structured_llm.ainvoke(prompt_messages + [ai, correction_guard] + feedback_messages)
             ai_msg = AIMessage(content=parsed.model_dump_json())
-            return {"messages": [ai_msg], "lot_chooser_result": parsed}
+            chose_lot_ids = [lot.lot_id for lot in parsed.lots]
+
+            all_cumulated_lot_ids = chose_lot_ids + state.get('cumulated_chose_lot_ids', [])
+            print(all_cumulated_lot_ids)
+            async with get_async_db() as db:
+                post_service = PostService(db)
+                await post_service.left_only_this_lot_ids(request_filter_id=runtime.context["request_id"],
+                                                          lot_ids=all_cumulated_lot_ids)
+
+            return {
+                "messages": [ai_msg],
+                "lot_chooser_result": parsed,
+                'chose_lot_ids': chose_lot_ids,
+                'cumulated_chose_lot_ids': all_cumulated_lot_ids,
+                'cumulated_lots': parsed.lots + state.get('cumulated_lots', [])
+            }
         except Exception as e:
             print(e)
             last_error = str(e)
@@ -86,7 +103,7 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
 def tools_router(state: AgentsState) -> str | None:
     messages = state.get("messages", [])
     if not messages:
-        return "choose_best_lots_agent"
+        return "process_image"
     last = messages[-1]
     if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
         return "tools_node"
@@ -94,4 +111,4 @@ def tools_router(state: AgentsState) -> str | None:
         data = json.loads(last.content)
         if data.get('is_error'):
             return 'end'
-    return "choose_best_lots_agent"
+    return "process_image"
