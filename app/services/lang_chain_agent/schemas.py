@@ -28,7 +28,6 @@ class ImageProcessingResult(BaseModel):
     descriptions: ImageProcessingSchema
 
 
-
 class AgentResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

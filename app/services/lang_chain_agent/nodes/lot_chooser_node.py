@@ -34,12 +34,18 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
     min_lots = state["min_lots_lot_chooser"]
     max_lots = state["max_lots_lot_chooser"]
 
+    is_need_more_lots = state.get('is_need_more_lots')
+    if is_need_more_lots:
+        min_lots = state.get('lots_needed', 5)
+        max_lots = state.get('lots_needed', 5) + 5
+
+
     print(min_lots, max_lots)
 
     response_schema: type[BaseModel] = get_agent_result_parser(min_lots, max_lots)
     structured_llm = llm.with_structured_output(response_schema)
 
-    system_instructions = get_instructions("main_agent.txt")
+    system_instructions = get_instructions("main_agent.md")
     prompt_messages: list[BaseMessage] = lot_chooser_prompt.invoke(
         {
             "system_instructions": system_instructions,

@@ -11,6 +11,7 @@ from app.database.enums import RequestStage
 from app.database.schemas.request_filters import RequestFiltersCreate
 from app.services.agent.types import Filters
 from app.services.lang_chain_agent.nodes.choose_best_lots_node import choose_best_lots_agent
+from app.services.lang_chain_agent.nodes.choose_final_lots_node import choose_final_lots_node, final_router
 from app.services.lang_chain_agent.nodes.images_processing_node import images_processing_agent
 from app.services.lang_chain_agent.nodes.lot_chooser_node import lot_chooser_agent_node, tools_router, lot_chooser_tools
 from app.services.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
@@ -20,8 +21,8 @@ graph: StateGraph[AgentsState, Any, AgentsState, AgentsState] = StateGraph(Agent
 graph.add_node("lot_chooser_agent", lot_chooser_agent_node)
 graph.add_node("tools_node", ToolNode(lot_chooser_tools))
 graph.add_node("choose_best_lots_agent", choose_best_lots_agent)
-
 graph.add_node('image_processing', images_processing_agent)
+graph.add_node("choose_final_lots", choose_final_lots_node)
 
 graph.add_edge(START, "lot_chooser_agent")
 graph.add_conditional_edges("lot_chooser_agent", tools_router, {"tools_node": "tools_node",
@@ -29,7 +30,11 @@ graph.add_conditional_edges("lot_chooser_agent", tools_router, {"tools_node": "t
                                                                 'end': END})
 graph.add_edge("tools_node", "lot_chooser_agent")
 graph.add_edge("choose_best_lots_agent", "image_processing")
-graph.add_edge("image_processing", END)
+graph.add_edge("image_processing", 'choose_final_lots')
+
+graph.add_conditional_edges("choose_final_lots", final_router, {'more_lots_needed': 'lot_chooser_agent',
+                                                                "end": END})
+
 
 app = graph.compile()
 
@@ -46,17 +51,17 @@ if __name__ == "__main__":
         initial_state: AgentsState = {
             "messages": [],
             "filters": Filters(site="IAAI", make="BMW"),
-            "min_lots_lot_chooser": 2,
-            "max_lots_lot_chooser": 2,
-            "min_best_picked_lots": 2,
-            "max_best_picked_lots": 2,
+            "min_lots_lot_chooser": 10,
+            "max_lots_lot_chooser": 15,
+            "min_best_picked_lots": 5,
+            "max_best_picked_lots": 15,
             "lot_chooser_result": None,
             "best_picked_lots": None,
         }
         context: AgentsRuntimeContext = {
             "user_uuid": request.user_uuid,
             "request_id": request.id,
-            "result_lots_count": 30,
+            "result_lots_count": 10,
         }
 
         result_state: AgentsState = await app.ainvoke(

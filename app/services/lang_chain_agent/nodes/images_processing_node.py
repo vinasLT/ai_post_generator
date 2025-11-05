@@ -54,7 +54,7 @@ async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRun
             )
 
             prompt_messages = image_processing_prompt.format_messages(
-                system_instructions=get_instructions("image_analyzer.txt"),
+                system_instructions=get_instructions("image_analyzer.md"),
                 title=post.title or "",
                 primary_damage=post.primary_damage or "",
                 images=[image_message],
