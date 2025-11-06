@@ -5,8 +5,10 @@ from langgraph.runtime import Runtime
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.core.logger import log_async_execution_time
 from app.services.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
 from app.services.lang_chain_agent.tools import get_instructions
+from app.services.lang_chain_agent.utils import GeneratePostUtils
 
 choose_final_lots_prompt = ChatPromptTemplate.from_messages(
     [
@@ -24,8 +26,14 @@ choose_final_lots_prompt = ChatPromptTemplate.from_messages(
 )
 
 llm = ChatOpenAI(model='gpt-5-mini', reasoning_effort='medium', api_key=settings.OPENAI_API_KEY, use_responses_api=True)
-
+@log_async_execution_time('Choose final lots')
 async def choose_final_lots_node(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> AgentsState:
+    await GeneratePostUtils.edit_message_for_user(
+        message_id=runtime.context['editable_message_id'],
+        text="🔄 Final choosing phase...\n"
+             "▶️ Approximately 2-4 min left",
+        user_uuid=runtime.context['user_uuid']
+    )
     image_descriptions = state['cumulated_images_description']
     lot_chooser_result = state['cumulated_lots']
     final_agent_messages = state.get('final_agent_messages', [])
@@ -44,8 +52,6 @@ async def choose_final_lots_node(state: AgentsState, runtime: Runtime[AgentsRunt
                 break
 
     descriptions_for_lots = "\n\n".join(descriptions_for_lots_raw)
-    print(len(descriptions_for_lots_raw))
-    print(descriptions_for_lots)
 
 
 
@@ -84,10 +90,14 @@ async def choose_final_lots_node(state: AgentsState, runtime: Runtime[AgentsRunt
 
 def final_router(state: AgentsState) -> str | None:
     is_need_more_lots = state.get('is_need_more_lots')
+    is_error = state.get('is_error', False)
+    if is_error:
+        return 'send_error_to_user'
+
     if is_need_more_lots:
         return 'more_lots_needed'
     else:
-        return 'end'
+        return 'send_posts_to_user'
 
 
 

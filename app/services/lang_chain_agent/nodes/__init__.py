@@ -1,3 +1,5 @@
 from .lot_chooser_node import lot_chooser_agent_node, tools_router, lot_chooser_tools
 from .images_processing_node import images_processing_agent
 from .choose_final_lots_node import choose_final_lots_node, final_router
+from .send_lots_to_user_node import send_lots_to_user_node
+from .send_erorr_node import send_error_node

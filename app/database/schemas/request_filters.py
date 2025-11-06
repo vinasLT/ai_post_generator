@@ -21,6 +21,8 @@ class RequestFiltersCreate(BaseModel):
     status: str | None = None
     auction_date_from: datetime | None = None
     auction_date_to: datetime | None = None
+    drive: str | None = None
+    auction_time: str | None = None
     stage: RequestStage
 
     created_at: Optional[datetime] = None
@@ -40,6 +42,8 @@ class RequestFiltersUpdate(BaseModel):
     transmission: str | None = None
     status: str | None = None
     stage: RequestStage | None = None
+    drive: str | None = None
+    auction_time: str | None = None
 
     created_at: Optional[datetime] = None
 

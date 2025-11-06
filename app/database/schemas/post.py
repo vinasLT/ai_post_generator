@@ -8,6 +8,8 @@ class PostCreate(BaseModel):
     lot_id: int
     auction: AuctionEnum
     title: str
+    make: str | None = None
+    model: str | None = None
     odometer: int
     reserve_price: int | None = None
     vin: str
@@ -20,7 +22,6 @@ class PostCreate(BaseModel):
     images: str
     year: int
     image_description: str | None = None
-    image_score: int | None = None
     comment: str | None = None
     primary_damage: str | None = None
 
@@ -41,7 +42,6 @@ class PostUpdate(BaseModel):
     shipping_price: int | None = None
     average_sell_price: int | None = None
     image_description: str | None = None
-    image_score: int | None = None
     comment: str | None = None
     primary_damage: str | None = None
     is_posted: bool | None = None

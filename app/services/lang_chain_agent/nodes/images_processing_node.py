@@ -9,11 +9,13 @@ from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
 
 from app.config import settings
+from app.core.logger import log_async_execution_time
 from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
 from app.services.lang_chain_agent.schemas import ImageProcessingSchema, ImageProcessingResult
 from app.services.lang_chain_agent.state_context import AgentsRuntimeContext, AgentsState
 from app.services.lang_chain_agent.tools import get_instructions
+from app.services.lang_chain_agent.utils import GeneratePostUtils
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=settings.OPENAI_API_KEY, use_responses_api=True)
 
@@ -31,7 +33,15 @@ image_processing_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
+@log_async_execution_time('Image processing')
 async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> Dict[str, Any]:
+    await GeneratePostUtils.edit_message_for_user(
+        message_id=runtime.context['editable_message_id'],
+        text="🔄 Processing images...\n"
+             "⏳ This phase usually takes 1 min\n"
+             "▶️ Approximately 5-7 min left",
+        user_uuid=runtime.context['user_uuid']
+    )
     request_id = runtime.context["request_id"]
     chose_lot_ids = state.get("chose_lot_ids", [])
 

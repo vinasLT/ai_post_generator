@@ -11,6 +11,9 @@ class AgentsState(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
     lots_from_search: list[Lot]
 
+    is_error: bool
+    error_message: str
+
     filters: Filters
 
     # lot chooser agent
@@ -40,3 +43,4 @@ class AgentsRuntimeContext(TypedDict):
     user_uuid: str
     request_id: int
     result_lots_count: int
+    editable_message_id: int

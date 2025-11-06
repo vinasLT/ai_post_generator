@@ -19,11 +19,15 @@ class Post(Base):
     auction: Mapped[AuctionEnum] = mapped_column(Enum(AuctionEnum), nullable=False)
 
     title: Mapped[str] = mapped_column(nullable=False)
+
+    make: Mapped[str] = mapped_column(nullable=True)
+    model: Mapped[str] = mapped_column(nullable=True)
     odometer: Mapped[int] = mapped_column(nullable=False)
     year: Mapped[int] = mapped_column(nullable=False)
     reserve_price: Mapped[int] = mapped_column(nullable=True)
     vin: Mapped[str] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(nullable=False)
+
 
     auction_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -35,7 +39,6 @@ class Post(Base):
     is_posted: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     image_description: Mapped[str] = mapped_column(nullable=True)
-    image_score: Mapped[int] = mapped_column(nullable=True)
 
     images: Mapped[str] = mapped_column(nullable=False)
 

@@ -29,6 +29,8 @@ class RequestFilters(Base):
     status: Mapped[str] = mapped_column(nullable=True)
     auction_date_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     auction_date_to: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    drive: Mapped[str] = mapped_column(nullable=True)
+    auction_time: Mapped[str] = mapped_column(nullable=True)
 
     stage: Mapped[RequestStage] = mapped_column(Enum(RequestStage),nullable=True)
 

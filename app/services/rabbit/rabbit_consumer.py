@@ -8,12 +8,12 @@ from app.core.logger import logger
 from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
 from app.database.schemas.post import PostUpdate
-from app.services.agent.run_post_generation_flow import run_post_generation_flow
-from app.services.ai_post_generation.generate_post import GeneratePost
-from app.services.ai_post_generation.post_serializer import SerializePost
-from app.services.agent.types import Filters
+from app.services.lang_chain_agent import run_flow
 from app.services.generate_post_manually import process_post_manually
 from app.services.image_post_generator.generator import build_post
+from app.services.lang_chain_agent.serializer import SerializePost
+from app.services.lang_chain_agent.types import Filters
+from app.services.lang_chain_agent.utils import GeneratePostUtils
 from app.services.rabbit.consumer_base import RabbitBaseService
 from app.services.rabbit.rabbit_service import RabbitMQPublisher
 
@@ -44,7 +44,7 @@ class RabbitPostsConsumer(RabbitBaseService):
             filters = payload.get("filters")
             user_uuid = payload.get("user_uuid")
             editable_message_id = payload.get("editable_message_id")
-            await run_post_generation_flow(Filters(**filters), editable_message_id, user_uuid)
+            await run_flow(Filters(**filters), user_uuid, editable_message_id)
 
         elif route == PostsRoutingKeys.POST_GENERATE_MANUALLY_IMAGE:
             post_id = payload.get("post_id")
@@ -74,7 +74,7 @@ class RabbitPostsConsumer(RabbitBaseService):
                 post_service = PostService(db)
                 post = await post_service.get(post_id)
                 await post_service.update(post_id, PostUpdate(comment=comment))
-                serialized = GeneratePost.generate_response_for_user([post])
+                serialized = GeneratePostUtils.generate_response_for_user([post])
 
                 data = {
                     'posts': serialized,

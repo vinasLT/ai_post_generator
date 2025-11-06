@@ -27,6 +27,17 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
         )
         return result.scalars().all()
 
+    async def delete_all_posts_for_request(self, request_id: int) -> None:
+        result = await self.session.execute(
+            select(Post).where(
+                Post.request_id == request_id
+            )
+        )
+        posts = result.scalars().all()
+        for post in posts:
+            await self.session.delete(post)
+        await self.session.commit()
+
 
     async def get_by_lot_id(self, lot_id: int) -> Post:
         result = await self.session.execute(
@@ -41,14 +52,26 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
         result = await self.session.execute(stmt)
         posts = result.scalars().all()
 
-        posts_to_delete = [post for post in posts if post.lot_id not in lot_ids]
-        posts_to_keep = [post for post in posts if post.lot_id in lot_ids]
+        allowed = set(lot_ids)
+        seen: set[int] = set()
+        posts_to_keep: list[Post] = []
+        posts_to_delete: list[Post] = []
+
+        for post in posts:
+            lid = post.lot_id
+            if lid not in allowed:
+                posts_to_delete.append(post)
+                continue
+            if lid in seen:
+                posts_to_delete.append(post)
+                continue
+            seen.add(lid)
+            posts_to_keep.append(post)
 
         for post in posts_to_delete:
             await self.session.delete(post)
 
         await self.session.commit()
-
         return posts_to_keep
 
     async def get_posts_by_lot_ids(self, lot_ids: list[int], request_id: int) -> Sequence[Post]:
@@ -99,6 +122,8 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
             post = await self.create(PostCreate(
                 lot_id=lot.lot_id,
                 auction=AuctionEnum(lot.base_site),
+                make=lot.make,
+                model=lot.model if lot.model else None,
                 title=lot.title,
                 odometer=lot.odometer,
                 vin=lot.vin,
