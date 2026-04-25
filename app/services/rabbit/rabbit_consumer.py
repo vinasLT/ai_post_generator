@@ -105,10 +105,12 @@ class RabbitPostsConsumer(RabbitBaseService):
                 post = await post_service.get(post_id)
                 await post_service.update(post_id, PostUpdate(is_posted=True))
                 serializer = SerializePost(post)
-                text = serializer.serialize()
                 await RabbitMQPublisher().publish(
                     routing_key="posts_service.publish_post",
-                    payload={"text": text, 'images': post.images.split(',')[:3]}
+                    payload={
+                        "images": post.images.split(",")[:3],
+                        "texts_by_language": serializer.texts_by_language_for_publish(),
+                    },
                 )
 
 

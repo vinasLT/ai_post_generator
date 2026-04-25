@@ -166,7 +166,7 @@ if __name__ == "__main__":
         "https://cs.copart.com/v1/AUTH_svc.pdoc00001/ids-c-prod-lpp/0325/0d6d28068e6747c9b35d011930deefdc_hrs.jpg",
         "https://cs.copart.com/v1/AUTH_svc.pdoc00001/ids-c-prod-lpp/0325/0d6d28068e6747c9b35d011930deefdc_hrs.jpg",
     ]
-    text = '''<b>📲 Susisiekite:</b> <a href="https://t.me/bidautoLT">https://t.me/bidautoLT</a><br>
+    text = '''<b>📲 Susisiekite:</b> <a href="https://t.me/VINASauto">https://t.me/VINASauto</a><br>
 🚗🔥 Labai geras pasiūlymas aukcione! 🔥🚗<br>
 🚗 2015 AUDI S4 3.0T PREMIUM PLUS<br>
 🕔 76345 miles<br>
@@ -188,7 +188,7 @@ Broker Fee: $299<br>
 ✅ 350€ Krova<br>
 ⏳ Liko mažai laiko – nepraleiskite progos! ⏳💨<br>
 💸 VIDUTINĖ pardavimo kaina: $3931<br>
-✉️ Rašykite mums DM arba apsilankykite 👉 <a href="https://bidauto.online">bidauto.online</a>'''
+✉️ Rašykite mums DM arba apsilankykite 👉 <a href="https://vinas.lt">vinas.lt</a>'''
     img_bytes = build_post(images=images, text=text, font_size=32, line_h=20)
     with open("test.png", "wb") as f:
         f.write(img_bytes)

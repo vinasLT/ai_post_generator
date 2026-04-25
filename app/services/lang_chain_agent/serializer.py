@@ -5,6 +5,11 @@ import pytz
 from app.database.models import Post
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
+from app.services.lang_chain_agent.post_locale_strings import (
+    POST_PUBLISH_LOCALES_ORDER,
+    PostPublishLocale,
+    locale_strings,
+)
 
 
 class Serializer:
@@ -57,6 +62,10 @@ class Serializer:
         return text
 
 class SerializePost:
+    """Builds Telegram HTML captions; `serialize()` stays Lithuanian for previews."""
+
+    POST_PUBLISH_LOCALES_ORDER: tuple[PostPublishLocale, ...] = POST_PUBLISH_LOCALES_ORDER
+
     def __init__(self, post: Post):
         self.post = post
 
@@ -65,41 +74,80 @@ class SerializePost:
         return images[:amount]
 
     def generate_link(self):
-        return f"https://bidauto.online/lot/{self.post.lot_id}?auction_name={self.post.auction.upper()}"
+        # e.g. https://vinas.lt/lot/51015956/copart
+        return f"https://vinas.lt/lot/{self.post.lot_id}/{self.post.auction.value}"
 
-    def serialize(self, for_image: bool = False):
+    def serialize(self, for_image: bool = False) -> str:
+        return self.serialize_locale("lt", for_image=for_image)
+
+    def serialize_locale(self, locale: PostPublishLocale, for_image: bool = False) -> str:
+        s = locale_strings(locale)
         local_time = None
         if self.post.auction_date:
             vilnius_tz = pytz.timezone('Europe/Vilnius')
             local_time = self.post.auction_date.astimezone(vilnius_tz)
             local_time = local_time.strftime('%d.%m.%Y %H:%M')
-        text = (
-            f"{f'🔗 <a href=\"{self.generate_link()}\">Atidaryti bidauto.online</a>\n\n' if not for_image else ''}"
-            f"📲 Susisiekite: https://t.me/bidautoLT\n"
-            f"🚗🔥 Labai geras pasiūlymas aukcione! 🔥🚗\n"
-            f"🚗 <b>{self.post.title}</b>\n"
-            f"🕔 <b>{self.post.odometer} miles</b>\n"
-            f"⚠️ <u><b>REZERVAS: ${f'{self.post.reserve_price:,}' if self.post.reserve_price else 'N/A'}</b></u>\n"
-            f"📌 Pardavėjas: Draudimas 👍\n"
-            f"📌 VIN: {self.post.vin}\n"
-            f"📌 Būklė: {self.post.status}\n"
-            f"🔧 Pirminė žala: {self.post.primary_damage}\n"
-            f"📌 Dokumentai: Tinka registracijai 👍\n"
-            f"⏳ Aukcionas prasideda: {local_time if local_time else 'N/A'} (Vilnius)\n"
-            f"🛳️ Transporto išlaidos sudarys:\n"
-            f"Vietinis Transportas: ${self.post.delivery_price}\n"
-            f"Jūrinis pervežimas: ${self.post.shipping_price}\n"
-            f"Broker Fee: $299\n"
-            f"*** Taip pat prisidės aukciono mokesčiai, kurie priklauso nuo statymo sumos!\n"
-            f"🇱🇹 Lietuvoje liks sumokėti:\n"
-            f"✅ 10% Muitas\n"
-            f"✅ 21% PVM\n"
-            f"✅ 350€ Krova\n"
-            f"⏳ Liko mažai laiko – nepraleiskite progos! ⏳💨\n"
-            f"💸 VIDUTINĖ pardavimo kaina: ${self.post.average_sell_price if self.post.average_sell_price else 'N/A'}\n"
-            f"✉️ Rašykite mums DM arba apsilankykite 👉 bidauto.online\n\n"
-            f"{f'<b>{self.post.comment}</b>' if self.post.comment else ''}"
+
+        reserve = f'{self.post.reserve_price:,}' if self.post.reserve_price else 'N/A'
+        delivery = str(self.post.delivery_price)
+        shipping = str(self.post.shipping_price)
+        avg = str(self.post.average_sell_price) if self.post.average_sell_price else None
+
+        link_block = (
+            f'🔗 <a href="{self.generate_link()}">{s["open_link"]}</a>\n\n'
+            if not for_image else ''
         )
+
+        auction_line = (
+            s["auction_starts"].format(local_time=local_time)
+            if local_time
+            else s["auction_starts_na"]
+        )
+
+        reserve_line = s["reserve"].replace("${reserve}", reserve)
+        odometer_line = s["odometer"].format(odometer=self.post.odometer)
+        local_t = s["local_transport"].replace("${delivery}", delivery)
+        sea_t = s["sea_transport"].replace("${shipping}", shipping)
+        if avg:
+            avg_line = s["avg_price"].replace("${avg}", avg)
+        else:
+            avg_line = s["avg_price_na"]
+
+        primary = self.post.primary_damage or 'N/A'
+
+        parts = [
+            link_block,
+            s["contact"] + "\n",
+            s["headline"] + "\n",
+            f"🚗 <b>{self.post.title}</b>\n",
+            odometer_line + "\n",
+            reserve_line + "\n",
+            s["seller"] + "\n",
+            f'{s["vin"]} {self.post.vin}\n',
+            f'{s["condition"]} {self.post.status}\n',
+            f'{s["primary_damage"]} {primary}\n',
+            s["documents"] + "\n",
+            auction_line + "\n",
+            s["shipping_header"] + "\n",
+            local_t + "\n",
+            sea_t + "\n",
+            s["broker_fee"] + "\n",
+            s["auction_fees_note"] + "\n",
+            s["taxes_header"] + "\n",
+            s["tax_customs"] + "\n",
+            s["tax_vat"] + "\n",
+            s["tax_port"] + "\n",
+            s["urgency"] + "\n",
+            avg_line + "\n",
+            s["cta"] + "\n\n",
+        ]
+        text = "".join(parts)
+        if self.post.comment:
+            text += f'<b>{self.post.comment}</b>'
         return text
 
-
+    def texts_by_language_for_publish(self) -> list[dict[str, str]]:
+        return [
+            {"lang": lang, "text": self.serialize_locale(lang, for_image=False)}
+            for lang in POST_PUBLISH_LOCALES_ORDER
+        ]
