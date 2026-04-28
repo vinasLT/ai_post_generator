@@ -1,6 +1,7 @@
 import grpc
 
 from app.config import settings
+from app.core.agent_debug_log import agent_debug_log
 from app.database.enums import AuctionEnum
 from app.rpc_client.base_client import BaseRpcClient, T
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
@@ -23,8 +24,23 @@ class CalculatorRcpClient(BaseRpcClient[calculator_pb2_grpc.CalculatorServiceStu
     async def get_calculator_with_data(self, price: int, auction: AuctionEnum,
                                        vehicle_type: str, location:str,
                                        destination: str | None = None, fee_type: str | None = None)-> calculator_pb2.GetCalculatorWithDataResponse:
-        data = calculator_pb2.GetCalculatorWithDataRequest(price=price, auction=auction.upper(), vehicle_type='CAR' if vehicle_type == 'Automobile' else vehicle_type,
+        vt_sent = 'CAR' if vehicle_type == 'Automobile' else vehicle_type
+        data = calculator_pb2.GetCalculatorWithDataRequest(price=price, auction=auction.upper(), vehicle_type=vt_sent,
                                                            location=location, destination=destination, fee_type=fee_type)
+        # #region agent log
+        agent_debug_log(
+            "H3",
+            "calculator.py:get_calculator_with_data",
+            "protobuf_request",
+            {
+                "auction_enum": str(auction),
+                "auction_field": auction.upper(),
+                "vehicle_type_raw": vehicle_type,
+                "vehicle_type_sent": vt_sent,
+                "location_preview": (location or "")[:160],
+            },
+        )
+        # #endregion
         return await self._execute_request(self.stub.GetCalculatorWithData, data, timeout=120)
 
 

@@ -8,6 +8,7 @@ from langchain.tools import tool, ToolRuntime
 
 from pydantic import Field
 
+from app.core.agent_debug_log import agent_debug_log
 from app.core.logger import logger
 from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
@@ -158,6 +159,23 @@ async def get_page_of_lots(
             return get_error_message(lots_removed_by_time_filter)
 
         lots_with_calculator = await get_calculators_for_lots(fresh_lots)
+        # #region agent log
+        fl = fresh_lots[0] if fresh_lots else None
+        agent_debug_log(
+            "H4",
+            "tools.py:get_page_of_lots:after_calculators",
+            "batch_vs_calculator",
+            {
+                "request_id": request_id,
+                "fresh_count": len(fresh_lots),
+                "with_calc_count": len(lots_with_calculator),
+                "sample_lot_id": getattr(fl, "lot_id", None),
+                "sample_base_site": getattr(fl, "base_site", None) if fl else None,
+                "sample_vehicle_type": getattr(fl, "vehicle_type", None) if fl else None,
+                "sample_location_preview": ((fl.location or "")[:120]) if fl else None,
+            },
+        )
+        # #endregion
         if lots_with_calculator:
             await post_service.create_posts_batch(request_id, lots_with_calculator)
         else:

@@ -5,6 +5,8 @@ from typing import Any
 from dateutil import parser
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core.agent_debug_log import agent_debug_log
 from app.core.logger import async_timer
 from app.database.models import Post
 from app.database.schemas.post import PostUpdate, PostCreate
@@ -38,19 +40,61 @@ async def get_repeated_lots(lot_ids: list[int], user_uuid: str, request_id: int 
 
 
 async def get_calculator_for_lot(lot: lot_pb2.Lot) -> calculator_pb2.GetCalculatorWithDataResponse | None:
-    async with CalculatorRcpClient() as client:
-        try:
-            response = await client.get_calculator_with_data(
-                price=1,
-                auction=AuctionEnum(lot.base_site.lower()),
-                vehicle_type=lot.vehicle_type,
-                location=lot.location
-            )
-            return response
-        except grpc.aio.AioRpcError as e:
-            logger.warning(f'For lot: {lot.lot_id} data for calculator was not found (Rpc Request)',
-                           extra={'error_code': str(e.code()), 'error_details': str(e.details())})
-            return None
+    # #region agent log
+    try:
+        auc = AuctionEnum(lot.base_site.lower())
+    except Exception as ae:
+        auc = None
+    agent_debug_log(
+        "H2",
+        "utils.py:get_calculator_for_lot:entry",
+        "lot_and_rcp",
+        {
+            "lot_id": lot.lot_id,
+            "base_site": getattr(lot, "base_site", None),
+            "auction_resolved": str(auc) if auc is not None else None,
+            "vehicle_type": getattr(lot, "vehicle_type", None),
+            "location_preview": (lot.location or "")[:160],
+            "rcp_calculator_url": settings.RCP_CALCULATOR_URL,
+        },
+    )
+    # #endregion
+    try:
+        async with CalculatorRcpClient() as client:
+            try:
+                response = await client.get_calculator_with_data(
+                    price=1,
+                    auction=AuctionEnum(lot.base_site.lower()),
+                    vehicle_type=lot.vehicle_type,
+                    location=lot.location
+                )
+                return response
+            except grpc.aio.AioRpcError as e:
+                # #region agent log
+                agent_debug_log(
+                    "H2",
+                    "utils.py:get_calculator_for_lot:rpc",
+                    "AioRpcError",
+                    {
+                        "lot_id": lot.lot_id,
+                        "code": str(e.code()),
+                        "details": (e.details() or "")[:500],
+                    },
+                )
+                # #endregion
+                logger.warning(f'For lot: {lot.lot_id} data for calculator was not found (Rpc Request)',
+                               extra={'error_code': str(e.code()), 'error_details': str(e.details())})
+                return None
+    except Exception as e:
+        # #region agent log
+        agent_debug_log(
+            "H1",
+            "utils.py:get_calculator_for_lot:outer",
+            "non_rpc_or_connect",
+            {"lot_id": lot.lot_id, "exc_type": type(e).__name__, "exc": str(e)[:500]},
+        )
+        # #endregion
+        raise
 
 async def get_calculators_for_lots(lots: list[lot_pb2.Lot]) -> list[tuple[lot_pb2.Lot, calculator_pb2.GetCalculatorWithDataResponse]]:
     semaphore = asyncio.Semaphore(5)
