@@ -6,6 +6,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.core.logger import log_async_execution_time
+from app.database.crud.post import PostService
 from app.database.crud.request_filter import RequestFiltersService
 from app.database.db.session import get_async_db
 from app.database.enums import RequestStage
@@ -15,9 +16,9 @@ from app.services.lang_chain_agent.nodes import lot_chooser_agent_node, lot_choo
 from app.services.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
 from app.services.lang_chain_agent.types import Filters
 
-MIN_LOTS_LOT_CHOOSER = 30
+MIN_LOTS_LOT_CHOOSER = 1
 MAX_LOTS_LOT_CHOOSER = 35
-FINAL_LOTS_COUNT = 30
+FINAL_LOTS_COUNT = 35
 
 
 def get_app() -> CompiledStateGraph[AgentsState, AgentsRuntimeContext]:
@@ -83,12 +84,20 @@ async def run_flow(filters: Filters, user_uuid: str, editable_message_id: int) -
         "editable_message_id": editable_message_id
     }
 
-    result_state: AgentsState = await app.ainvoke(
-        initial_state,
-        context=context,
-        recursion_limit=50
-    )
-    return result_state
+    try:
+        result_state: AgentsState = await app.ainvoke(
+            initial_state,
+            context=context,
+            recursion_limit=50
+        )
+        return result_state
+    except Exception:
+        async with get_async_db() as db:
+            post_service = PostService(db)
+            await post_service.delete_all_posts_for_request(request.id)
+            requests_service = RequestFiltersService(db)
+            await requests_service.set_request_stage(request.id, RequestStage.FAILED)
+        raise
 
 
 
@@ -113,8 +122,8 @@ if __name__ == "__main__":
         initial_state: AgentsState = {
             "messages": [],
             "filters": Filters(site="IAAI", make="BMW"),
-            "min_lots_lot_chooser": 30,
-            "max_lots_lot_chooser": 35,
+            "min_lots_lot_chooser": MIN_LOTS_LOT_CHOOSER,
+            "max_lots_lot_chooser": MAX_LOTS_LOT_CHOOSER,
             "lot_chooser_result": None,
         }
         context: AgentsRuntimeContext = {

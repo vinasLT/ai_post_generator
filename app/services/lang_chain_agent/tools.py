@@ -108,26 +108,41 @@ async def get_page_of_lots(
     lot_ids = [lot.lot_id for lot in response.lot]
     user_uuid = runtime.context["user_uuid"]
     request_id = runtime.context["request_id"]
-    repeated_lot_ids = await get_repeated_lots(lot_ids, user_uuid, request_id)
-    repeated_lot_ids_set = set(repeated_lot_ids)
 
-    def get_error_message(removed_by_time_filter: int) -> str:
+    async with get_async_db() as db:
+        post_service = PostService(db)
+        existing_posts = await post_service.get_by_request_id(request_id)
+        existing_lot_ids = {post.lot_id for post in existing_posts}
+
+    repeated_lot_ids = await get_repeated_lots(lot_ids, user_uuid, request_id)
+    skip_lot_ids = set(repeated_lot_ids) | existing_lot_ids
+
+    page_lot_count = len(lot_ids)
+
+    def get_error_message(removed_by_time_filter: int, reason: str) -> str:
         return (
-            f"No new lots on this page. 20 lots were found, but they were already sent or removed by the time filter "
-            f"(removed: {removed_by_time_filter}). Try page {page + 1}. "
+            f"No new lots on this page. {page_lot_count} lots were found, but {reason} "
+            f"(removed by time filter: {removed_by_time_filter}). Try page {page + 1}. "
             f"If there are still no new lots for several pages, jump to {page + 8} or to the last page {response.pagination.pages}. "
             f"Pagination: {Serializer.generate_text_for_pagination(response.pagination)}."
         )
 
-    if lot_ids and all(lot_id in repeated_lot_ids_set for lot_id in lot_ids):
-        logger.warning(f"No unique lots found for filters: {filters}")
-        return get_error_message(lots_removed_by_time_filter)
+    if not lot_ids:
+        logger.warning(f"Auction API returned no lots for filters: {filters}, page={page}")
+        return get_error_message(lots_removed_by_time_filter, "the API returned an empty page")
+
+    if repeated_lot_ids and all(lot_id in skip_lot_ids for lot_id in lot_ids):
+        logger.warning(
+            f"All lots on page already sent to user (completed requests): {filters}, "
+            f"page={page}, repeated={len(repeated_lot_ids)}"
+        )
+        return get_error_message(lots_removed_by_time_filter, "they were already sent to this user")
 
     unique_lots = []
     seen_lot_ids: set[int] = set()
 
     for lot in response.lot:
-        if lot.lot_id in repeated_lot_ids_set or lot.lot_id in seen_lot_ids:
+        if lot.lot_id in skip_lot_ids or lot.lot_id in seen_lot_ids:
             continue
 
         if filter_time:
@@ -145,18 +160,20 @@ async def get_page_of_lots(
         seen_lot_ids.add(lot.lot_id)
 
     if not unique_lots:
-        logger.warning(f"No unique lots found for filters: {filters}")
-        return get_error_message(lots_removed_by_time_filter)
+        logger.warning(
+            f"No unique lots after filtering for filters: {filters}, page={page}, "
+            f"skipped_sent={len(repeated_lot_ids)}, skipped_current_request={len(existing_lot_ids)}, "
+            f"removed_by_time={lots_removed_by_time_filter}"
+        )
+        return get_error_message(
+            lots_removed_by_time_filter,
+            "they were already sent, already fetched in this request, or removed by the time filter",
+        )
+
+    fresh_lots = unique_lots
 
     async with get_async_db() as db:
         post_service = PostService(db)
-        existing_posts = await post_service.get_by_request_id(request_id)
-        existing_lot_ids = {post.lot_id for post in existing_posts}
-        fresh_lots = [lot for lot in unique_lots if lot.lot_id not in existing_lot_ids]
-
-        if not fresh_lots:
-            logger.warning(f"All fetched lots are already saved for current request: {request_id}")
-            return get_error_message(lots_removed_by_time_filter)
 
         lots_with_calculator = await get_calculators_for_lots(fresh_lots)
         # #region agent log
@@ -181,7 +198,14 @@ async def get_page_of_lots(
         else:
             logger.warning(f"Calculator data missing for all lots in current batch, request_id={request_id}")
 
-    lots_serialized = Serializer.transform_lots_for_ai(fresh_lots)
+    saved_lots = [lot for lot, _ in lots_with_calculator] if lots_with_calculator else []
+    if not saved_lots:
+        return get_error_message(
+            lots_removed_by_time_filter,
+            "calculator data was missing so none of the lots could be saved",
+        )
+
+    lots_serialized = Serializer.transform_lots_for_ai(saved_lots)
 
     response_text = (
         f"Pagination: {Serializer.generate_text_for_pagination(response.pagination)}\n\n"

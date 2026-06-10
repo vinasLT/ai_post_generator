@@ -3,8 +3,7 @@ import json
 from typing import Any, Dict
 
 from asyncio import Semaphore
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
 
@@ -19,19 +18,21 @@ from app.services.lang_chain_agent.utils import GeneratePostUtils
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0, api_key=settings.OPENAI_API_KEY, use_responses_api=True)
 
-image_processing_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", "{system_instructions}"),
-        MessagesPlaceholder(variable_name="images"),
-        (
-            "human",
-            "Analyze this 5 lots and make little summary based on it (one sentence)\n"
-            "Additional info about vehicle:\n"
-            "Name of vehicle: {title}\n"
-            "Primary Damage: {primary_damage}\n"
+
+def _build_image_processing_messages(title: str, primary_damage: str, image_message: HumanMessage) -> list:
+    return [
+        SystemMessage(content=get_instructions("image_analyzer.md")),
+        image_message,
+        HumanMessage(
+            content=(
+                "Analyze this 5 lots and make little summary based on it (one sentence)\n"
+                "Additional info about vehicle:\n"
+                f"Name of vehicle: {title}\n"
+                f"Primary Damage: {primary_damage}\n"
+            )
         ),
     ]
-)
+
 
 @log_async_execution_time('Image processing')
 async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> Dict[str, Any]:
@@ -64,11 +65,10 @@ async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRun
                 content=[{"type": "image_url", "image_url": {"url": url}} for url in images_urls]
             )
 
-            prompt_messages = image_processing_prompt.format_messages(
-                system_instructions=get_instructions("image_analyzer.md"),
+            prompt_messages = _build_image_processing_messages(
                 title=post.title or "",
                 primary_damage=post.primary_damage or "",
-                images=[image_message],
+                image_message=image_message,
             )
 
             structured_llm = llm.with_structured_output(ImageProcessingSchema)

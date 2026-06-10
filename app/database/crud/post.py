@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import logger
 from app.database.crud.base import BaseService
-from app.database.enums import AuctionEnum
+from app.database.enums import AuctionEnum, RequestStage
 from app.database.models.post import Post
 from app.database.models.request_filters import RequestFilters
 from app.database.schemas.post import PostCreate, PostUpdate
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.calculator.v1 import calculator_pb2
+from app.rpc_client.calculator import get_broker_fee_from_calculator
 
 
 class PostService(BaseService[Post, PostCreate, PostUpdate]):
@@ -106,6 +107,7 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
             select(Post.lot_id)
             .join(RequestFilters, Post.request_id == RequestFilters.id)
             .where(RequestFilters.user_uuid == user_uuid)
+            .where(RequestFilters.stage == RequestStage.COMPLETED)
             .where(Post.lot_id.in_(lot_ids))
         )
 
@@ -133,6 +135,7 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
                 auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
                 delivery_price=calculator.data.calculator.transportation_price[0].price,
                 shipping_price=calculator.data.calculator.ocean_ship[0].price,
+                broker_fee=get_broker_fee_from_calculator(calculator),
                 average_sell_price=average_sell_price,
                 request_id=request_id,
                 images=','.join(list(lot.link_img_hd)[:10])

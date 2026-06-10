@@ -17,6 +17,7 @@ class PostCreate(BaseModel):
     auction_date: datetime | None = None
     delivery_price: int
     shipping_price: int
+    broker_fee: int = 299
     average_sell_price: int | None = None
     is_posted: bool | None = False
     images: str
@@ -40,6 +41,7 @@ class PostUpdate(BaseModel):
     auction_date: datetime | None = None
     delivery_price: int | None = None
     shipping_price: int | None = None
+    broker_fee: int | None = None
     average_sell_price: int | None = None
     image_description: str | None = None
     comment: str | None = None

@@ -38,7 +38,6 @@ class Settings(BaseSettings):
     # gRPC
     RPC_AUCTION_API_URL: str = "localhost:50052"
     RCP_CALCULATOR_URL: str = 'localhost:50051'
-    RPC_CHAT_BOT_URL: str = "localhost:50053"
 
     model_config = SettingsConfigDict(env_file=f"{BASE_DIR}/.env")
 

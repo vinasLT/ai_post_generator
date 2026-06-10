@@ -88,10 +88,12 @@ class SerializePost:
             local_time = self.post.auction_date.astimezone(vilnius_tz)
             local_time = local_time.strftime('%d.%m.%Y %H:%M')
 
-        reserve = f'{self.post.reserve_price:,}' if self.post.reserve_price else 'N/A'
-        delivery = str(self.post.delivery_price)
-        shipping = str(self.post.shipping_price)
-        avg = str(self.post.average_sell_price) if self.post.average_sell_price else None
+        reserve = f'${self.post.reserve_price:,}' if self.post.reserve_price else 'N/A'
+        delivery = f'${self.post.delivery_price:,}'
+        shipping = f'${self.post.shipping_price:,}'
+        avg = f'${self.post.average_sell_price:,}' if self.post.average_sell_price else None
+
+        broker_fee = f'${self.post.broker_fee:,}'
 
         link_block = (
             f'🔗 <a href="{self.generate_link()}">{s["open_link"]}</a>\n\n'
@@ -108,6 +110,7 @@ class SerializePost:
         odometer_line = s["odometer"].format(odometer=self.post.odometer)
         local_t = s["local_transport"].replace("${delivery}", delivery)
         sea_t = s["sea_transport"].replace("${shipping}", shipping)
+        broker_line = s["broker_fee"].replace("${broker_fee}", broker_fee)
         if avg:
             avg_line = s["avg_price"].replace("${avg}", avg)
         else:
@@ -131,7 +134,7 @@ class SerializePost:
             s["shipping_header"] + "\n",
             local_t + "\n",
             sea_t + "\n",
-            s["broker_fee"] + "\n",
+            broker_line + "\n",
             s["auction_fees_note"] + "\n",
             s["taxes_header"] + "\n",
             s["tax_customs"] + "\n",

@@ -33,6 +33,7 @@ class Post(Base):
 
     delivery_price: Mapped[int] = mapped_column(nullable=False)
     shipping_price: Mapped[int] = mapped_column(nullable=False)
+    broker_fee: Mapped[int] = mapped_column(nullable=False, default=299)
     average_sell_price: Mapped[int] = mapped_column(nullable=True)
     primary_damage: Mapped[str] = mapped_column(nullable=True)
 

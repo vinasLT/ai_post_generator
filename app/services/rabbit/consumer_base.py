@@ -12,7 +12,7 @@ class RabbitBaseService(ABC):
     def __init__(self, connection: AbstractRobustConnection,
                  routing_keys: List[str],
                  exchange_name: str = settings.RABBITMQ_EXCHANGE_NAME,
-                 prefetch_count: int = 10,
+                 prefetch_count: int = 1,
                  durable: bool = True,
                  queue_name: str = settings.RABBITMQ_QUEUE_NAME,
                  max_retries: int = 3):

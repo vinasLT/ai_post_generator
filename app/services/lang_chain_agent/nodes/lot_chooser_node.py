@@ -2,7 +2,6 @@ import json
 from typing import Any
 
 from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime
@@ -20,19 +19,57 @@ from app.services.lang_chain_agent.utils import GeneratePostUtils
 
 llm = ChatOpenAI(model='gpt-5-mini', reasoning_effort="medium", api_key=settings.OPENAI_API_KEY, use_responses_api=True)
 
-lot_chooser_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", "{system_instructions}"),
-        MessagesPlaceholder(variable_name="history"),
-        (
-            "human",
-            "You must pick best lots using this filters: {filters}"
-            "You must return this amount of lots - from {min_lots} to {max_lots}"
+lot_chooser_tools: list[BaseTool] = [get_page_of_lots]
+
+
+def _build_lot_chooser_base_messages(
+    system_instructions: str,
+    history: list[BaseMessage],
+    filters_json: str,
+    min_lots: int,
+    max_lots: int,
+) -> list[BaseMessage]:
+    return [
+        SystemMessage(content=system_instructions),
+        *history,
+        HumanMessage(
+            content=(
+                f"Pick the best qualifying lots using these filters: {filters_json}\n"
+                f"Return up to {max_lots} lots. Include every lot that passes all hard exclusion rules, "
+                f"even if the count is well below {max_lots}.\n"
+                f"Do not set is_error=true only because fewer than {max_lots} lots qualify. "
+                f"Use is_error only when zero lots qualify or tools fail."
+            )
         ),
     ]
-)
 
-lot_chooser_tools: list[BaseTool] = [get_page_of_lots]
+
+async def _finalize_lot_chooser_result(
+    parsed: AgentResult,
+    state: AgentsState,
+    runtime: Runtime[AgentsRuntimeContext],
+) -> dict[str, Any]:
+    ai_msg = AIMessage(content=parsed.model_dump_json())
+    chose_lot_ids = [lot.lot_id for lot in parsed.lots]
+    all_cumulated_lot_ids = chose_lot_ids + state.get("cumulated_chose_lot_ids", [])
+
+    async with get_async_db() as db:
+        post_service = PostService(db)
+        posts = await post_service.left_only_this_lot_ids(
+            request_filter_id=runtime.context["request_id"], lot_ids=all_cumulated_lot_ids
+        )
+
+    if not posts:
+        raise ValueError("No matching posts in the database.")
+
+    return {
+        "messages": [ai_msg],
+        "lot_chooser_result": parsed,
+        "chose_lot_ids": chose_lot_ids,
+        "cumulated_chose_lot_ids": all_cumulated_lot_ids,
+        "cumulated_lots": parsed.lots + state.get("cumulated_lots", []),
+    }
+
 
 @log_async_execution_time('Choosing lots')
 async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> dict[str, Any]:
@@ -63,15 +100,14 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
     structured_llm = llm.with_structured_output(response_schema)
     system_instructions = get_instructions("main_agent.md")
 
-    base_messages: list[BaseMessage] = lot_chooser_prompt.invoke(
-        {
-            "system_instructions": system_instructions,
-            "history": state["messages"],
-            "filters": state["filters"].model_dump(mode="json"),
-            "min_lots": min_lots,
-            "max_lots": max_lots,
-        }
-    ).to_messages()
+    filters_json = json.dumps(state["filters"].model_dump(mode="json"), ensure_ascii=False)
+    base_messages = _build_lot_chooser_base_messages(
+        system_instructions=system_instructions,
+        history=state.get("messages", []),
+        filters_json=filters_json,
+        min_lots=min_lots,
+        max_lots=max_lots,
+    )
 
     correction_guard = SystemMessage(content="If you receive validation feedback, you must correct your answer to satisfy the response schema exactly and return only the fixed object.")
     feedback_messages: list[HumanMessage] = []
@@ -84,39 +120,39 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
         if getattr(ai, "tool_calls", None):
             return {"messages": [ai]}
 
-        parsed = await structured_llm.ainvoke(messages + [ai, correction_guard] + feedback_messages)
-
-        if parsed.is_error:
-            err = parsed.error_message
-            ai_err = AIMessage(content=parsed.model_dump_json())
-            return {"is_error": True, "error_message": err, "messages": [ai_err], "lot_chooser_result": parsed}
-
-        ai_msg = AIMessage(content=parsed.model_dump_json())
-        chose_lot_ids = [lot.lot_id for lot in parsed.lots]
-        all_cumulated_lot_ids = chose_lot_ids + state.get("cumulated_chose_lot_ids", [])
-
         try:
-            async with get_async_db() as db:
-                post_service = PostService(db)
-                posts = await post_service.left_only_this_lot_ids(
-                    request_filter_id=runtime.context["request_id"], lot_ids=all_cumulated_lot_ids
-                )
+            parsed = await structured_llm.ainvoke(messages + [ai, correction_guard] + feedback_messages)
         except Exception as e:
-            return {"is_error": True, "error_message": str(e)}
-
-        if len(posts) < min_lots:
-            error_message = HumanMessage(content="Not enough existing lots. Use tools to fetch another page and provide only existing lot_ids.")
-            feedback_messages.append(error_message)
+            feedback_messages.append(
+                HumanMessage(content=f"Your response failed validation: {e}. Fix schema violations and try again.")
+            )
             messages = list(base_messages) + [ai, correction_guard] + feedback_messages
             continue
 
-        return {
-            "messages": [ai_msg],
-            "lot_chooser_result": parsed,
-            "chose_lot_ids": chose_lot_ids,
-            "cumulated_chose_lot_ids": all_cumulated_lot_ids,
-            "cumulated_lots": parsed.lots + state.get("cumulated_lots", []),
-        }
+        if parsed.is_error and not parsed.lots:
+            feedback_messages.append(
+                HumanMessage(
+                    content=(
+                        "Do not stop with is_error when some lots qualify. "
+                        f"Return every qualifying lot you found (up to {max_lots}) with is_error=false. "
+                        f"Previous error: {parsed.error_message}"
+                    )
+                )
+            )
+            messages = list(base_messages) + [ai, correction_guard] + feedback_messages
+            continue
+
+        try:
+            return await _finalize_lot_chooser_result(parsed, state, runtime)
+        except ValueError:
+            error_message = HumanMessage(
+                content="No matching posts in the database. Use tools to fetch lots, then return only lot_ids that exist."
+            )
+            feedback_messages.append(error_message)
+            messages = list(base_messages) + [ai, correction_guard] + feedback_messages
+            continue
+        except Exception as e:
+            return {"is_error": True, "error_message": str(e)}
 
     fallback_nudge = HumanMessage(
         content="You could not satisfy the schema yet. Call the available tools now to fetch or refine lots, then return a corrected object strictly matching the schema."
@@ -132,10 +168,14 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
 
     try:
         parsed_final = await structured_llm.ainvoke(list(base_messages) + [correction_guard] + feedback_messages + [fallback_nudge])
-        if parsed_final.is_error:
-            err = parsed_final.error_message
-            ai_err = AIMessage(content=parsed_final.model_dump_json())
-            return {"is_error": True, "error_message": err, "messages": [ai_err], "lot_chooser_result": parsed_final}
+        if parsed_final.is_error and not parsed_final.lots:
+            return {
+                "is_error": True,
+                "error_message": parsed_final.error_message,
+                "messages": [AIMessage(content=parsed_final.model_dump_json())],
+                "lot_chooser_result": parsed_final,
+            }
+        return await _finalize_lot_chooser_result(parsed_final, state, runtime)
     except Exception:
         pass
 

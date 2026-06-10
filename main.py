@@ -8,8 +8,12 @@ async def main():
     connection = await connect_robust(settings.RABBITMQ_URL)
     async with connection:
         channel = await connection.channel()
-        await channel.set_qos(prefetch_count=10)
-        consumer = RabbitPostsConsumer(connection, [rk.value for rk in PostsRoutingKeys])
+        await channel.set_qos(prefetch_count=1)
+        consumer = RabbitPostsConsumer(
+            connection,
+            [rk.value for rk in PostsRoutingKeys],
+            prefetch_count=1,
+        )
         await consumer.set_up()
         await consumer.start_consuming()
         stop_event = asyncio.Event()

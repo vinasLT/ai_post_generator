@@ -2,7 +2,9 @@ from langgraph.runtime import Runtime
 
 from app.core.logger import log_async_execution_time
 from app.database.crud.post import PostService
+from app.database.crud.request_filter import RequestFiltersService
 from app.database.db.session import get_async_db
+from app.database.enums import RequestStage
 from app.services.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
 from app.services.lang_chain_agent.utils import GeneratePostUtils
 
@@ -12,8 +14,8 @@ async def send_lots_to_user_node(state: AgentsState, runtime: Runtime[AgentsRunt
     request_id = runtime.context["request_id"]
     user_uuid = runtime.context["user_uuid"]
     async with get_async_db() as db:
-        requests_service = PostService(db)
-        posts = await requests_service.left_only_this_lot_ids(request_filter_id=request_id, lot_ids=final_lot_ids)
+        post_service = PostService(db)
+        posts = await post_service.left_only_this_lot_ids(request_filter_id=request_id, lot_ids=final_lot_ids)
 
         posts = await GeneratePostUtils.update_average_price_for_posts(posts)
 
@@ -23,3 +25,7 @@ async def send_lots_to_user_node(state: AgentsState, runtime: Runtime[AgentsRunt
         user_uuid=user_uuid
     )
     await GeneratePostUtils.send_response_to_user(posts, request_id, user_uuid)
+
+    async with get_async_db() as db:
+        requests_service = RequestFiltersService(db)
+        await requests_service.set_request_stage(request_id, RequestStage.COMPLETED)

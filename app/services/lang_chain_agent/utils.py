@@ -18,7 +18,12 @@ from app.core.logger import logger
 from app.database.crud.post import PostService
 from app.database.db.session import get_async_db
 from app.database.enums import AuctionEnum
-from app.rpc_client.calculator import CalculatorRcpClient
+from app.rpc_client.calculator import (
+    CalculatorRcpClient,
+    calculator_response_from_batch_item,
+    get_broker_fee_from_calculator,
+    is_valid_calculator_response,
+)
 from app.rpc_client.gen.python.auction.v1 import lot_pb2
 from app.rpc_client.gen.python.calculator.v1 import calculator_pb2
 
@@ -68,6 +73,15 @@ async def get_calculator_for_lot(lot: lot_pb2.Lot) -> calculator_pb2.GetCalculat
                     vehicle_type=lot.vehicle_type,
                     location=lot.location
                 )
+                if not is_valid_calculator_response(response):
+                    logger.warning(
+                        f'For lot: {lot.lot_id} calculator returned no pricing data',
+                        extra={
+                            'location': lot.location,
+                            'vehicle_type': lot.vehicle_type,
+                        },
+                    )
+                    return None
                 return response
             except grpc.aio.AioRpcError as e:
                 # #region agent log
@@ -97,20 +111,47 @@ async def get_calculator_for_lot(lot: lot_pb2.Lot) -> calculator_pb2.GetCalculat
         raise
 
 async def get_calculators_for_lots(lots: list[lot_pb2.Lot]) -> list[tuple[lot_pb2.Lot, calculator_pb2.GetCalculatorWithDataResponse]]:
-    semaphore = asyncio.Semaphore(5)
-    lots_with_calculators: list[tuple[lot_pb2.Lot, calculator_pb2.GetCalculatorWithDataResponse]] = []
+    if not lots:
+        return []
 
-    async def get_calculator(lot: lot_pb2.Lot) -> None:
-        async with semaphore:
-            try:
-                calculator = await get_calculator_for_lot(lot)
-                if calculator:
-                    lots_with_calculators.append((lot, calculator))
-            except Exception as e:
-                logger.error(f"Error getting calculator for lot {lot.lot_id}: {str(e)}")
+    results: dict[int, calculator_pb2.GetCalculatorWithDataResponse] = {}
 
-    await asyncio.gather(*(asyncio.create_task(get_calculator(lot)) for lot in lots))
-    return lots_with_calculators
+    try:
+        async with CalculatorRcpClient() as client:
+            batch_response = await client.get_batch_calculators_with_data(lots)
+            if batch_response:
+                for item in batch_response.data:
+                    response = calculator_response_from_batch_item(item)
+                    if response:
+                        results[int(item.lot_id)] = response
+    except Exception as e:
+        logger.error(f"Batch calculator request failed: {e}")
+
+    missing_lots = [lot for lot in lots if lot.lot_id not in results]
+    if missing_lots:
+        semaphore = asyncio.Semaphore(5)
+
+        async def fetch_single(lot: lot_pb2.Lot) -> None:
+            async with semaphore:
+                try:
+                    calculator = await get_calculator_for_lot(lot)
+                    if is_valid_calculator_response(calculator):
+                        results[lot.lot_id] = calculator
+                except Exception as e:
+                    logger.error(f"Error getting calculator for lot {lot.lot_id}: {str(e)}")
+
+        await asyncio.gather(*(asyncio.create_task(fetch_single(lot)) for lot in missing_lots))
+
+    if len(results) < len(lots):
+        logger.warning(
+            "Calculator pricing missing for some lots",
+            extra={
+                "requested": len(lots),
+                "resolved": len(results),
+            },
+        )
+
+    return [(lot, results[lot.lot_id]) for lot in lots if lot.lot_id in results]
 
 
 
@@ -158,6 +199,7 @@ class GeneratePostUtils:
                 auction_date=parser.parse(lot.auction_date) if lot.auction_date else None,
                 delivery_price=minimal_delivery_price,
                 shipping_price=minimal_shipping_price,
+                broker_fee=get_broker_fee_from_calculator(calculator),
                 average_sell_price=average_sell_price,
                 request_id=request_id,
                 images=','.join(list(lot.link_img_hd)[:10])
