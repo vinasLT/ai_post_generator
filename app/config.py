@@ -1,5 +1,6 @@
 from enum import Enum
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.utils import BASE_DIR
@@ -40,6 +41,12 @@ class Settings(BaseSettings):
     RCP_CALCULATOR_URL: str = 'localhost:50051'
 
     model_config = SettingsConfigDict(env_file=f"{BASE_DIR}/.env")
+
+    @model_validator(mode="after")
+    def disable_debug_in_production(self) -> "Settings":
+        if self.ENVIRONMENT == Environment.PRODUCTION:
+            self.DEBUG = False
+        return self
 
 
 
