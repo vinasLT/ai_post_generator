@@ -61,6 +61,7 @@ class Serializer:
             text += f'{idx + 1}. ' + cls.generate_text_for_lot(lot_obj) + '\n' + image_descrition_text + '\n\n'
         return text
 
+
 class SerializePost:
     """Builds Telegram HTML captions; `serialize()` stays Lithuanian for previews."""
 
@@ -88,61 +89,59 @@ class SerializePost:
             local_time = self.post.auction_date.astimezone(vilnius_tz)
             local_time = local_time.strftime('%d.%m.%Y %H:%M')
 
-        reserve = f'${self.post.reserve_price:,}' if self.post.reserve_price else 'N/A'
+        reserve = (
+            f'${self.post.reserve_price:,}'
+            if self.post.reserve_price
+            else s["reserve_none"]
+        )
         delivery = f'${self.post.delivery_price:,}'
         shipping = f'${self.post.shipping_price:,}'
-        avg = f'${self.post.average_sell_price:,}' if self.post.average_sell_price else None
-
         broker_fee = f'${self.post.broker_fee:,}'
+        avg = f'${self.post.average_sell_price:,}' if self.post.average_sell_price else None
 
         link_block = (
             f'🔗 <a href="{self.generate_link()}">{s["open_link"]}</a>\n\n'
             if not for_image else ''
         )
 
-        auction_line = (
-            s["auction_starts"].format(local_time=local_time)
+        auction_time = (
+            s["auction_starts_time"].format(local_time=local_time)
             if local_time
             else s["auction_starts_na"]
         )
 
-        reserve_line = s["reserve"].replace("${reserve}", reserve)
-        odometer_line = s["odometer"].format(odometer=self.post.odometer)
-        local_t = s["local_transport"].replace("${delivery}", delivery)
-        sea_t = s["sea_transport"].replace("${shipping}", shipping)
-        broker_line = s["broker_fee"].replace("${broker_fee}", broker_fee)
-        if avg:
-            avg_line = s["avg_price"].replace("${avg}", avg)
-        else:
-            avg_line = s["avg_price_na"]
-
         primary = self.post.primary_damage or 'N/A'
+        avg_line = s["avg_price"].format(avg=avg) if avg else s["avg_price_na"]
 
         parts = [
             link_block,
-            s["contact"] + "\n",
-            s["headline"] + "\n",
-            f"🚗 <b>{self.post.title}</b>\n",
-            odometer_line + "\n",
-            reserve_line + "\n",
+            s["headline"] + "\n\n",
+            f"🚗 {self.post.title}\n",
+            s["odometer"].format(odometer=self.post.odometer) + "\n",
+            s["vin"].format(vin=self.post.vin) + "\n\n",
+            s["info_header"] + "\n",
             s["seller"] + "\n",
-            f'{s["vin"]} {self.post.vin}\n',
-            f'{s["condition"]} {self.post.status}\n',
-            f'{s["primary_damage"]} {primary}\n',
             s["documents"] + "\n",
-            auction_line + "\n",
+            s["reserve"].format(reserve=reserve) + "\n",
+            s["condition"].format(status=self.post.status) + "\n",
+            s["primary_damage"].format(damage=primary) + "\n\n",
+            s["auction_starts_header"] + "\n",
+            auction_time + "\n\n",
             s["shipping_header"] + "\n",
-            local_t + "\n",
-            sea_t + "\n",
-            broker_line + "\n",
-            s["auction_fees_note"] + "\n",
+            s["local_transport"].format(delivery=delivery) + "\n",
+            s["sea_transport"].format(shipping=shipping) + "\n",
+            s["broker_fee"].format(broker_fee=broker_fee) + "\n\n",
+            s["auction_fees_note"] + "\n\n",
             s["taxes_header"] + "\n",
             s["tax_customs"] + "\n",
             s["tax_vat"] + "\n",
-            s["tax_port"] + "\n",
-            s["urgency"] + "\n",
-            avg_line + "\n",
-            s["cta"] + "\n\n",
+            s["tax_port"] + "\n\n",
+            avg_line + "\n\n",
+            s["urgency"] + "\n\n",
+            s["cta_question"] + "\n\n",
+            s["cta_write"] + "\n",
+            s["cta_telegram"] + "\n",
+            s["cta_website"] + "\n\n",
         ]
         text = "".join(parts)
         if self.post.comment:
