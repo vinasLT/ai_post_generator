@@ -72,9 +72,9 @@ jobs:
           context: .
           file: Dockerfile
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service,push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service:buildcache-${{ matrix.cache-tag }}
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service:buildcache-${{ matrix.cache-tag }},mode=max
+          outputs: type=image,name=${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service:buildcache-${{ matrix.cache-tag }}
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service:buildcache-${{ matrix.cache-tag }},mode=max
 
       - name: Export digest
         run: |
@@ -114,9 +114,9 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service:latest \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service:${{ github.sha }} \
-            $(printf '${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service@sha256:%s ' *)
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service:latest \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service:${{ github.sha }} \
+            $(printf '${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service@sha256:%s ' *)
 
   deploy:
     needs: merge
@@ -132,7 +132,7 @@ jobs:
           script: |
             set -x
             echo "🔁 Pulling latest Docker image..."
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/bidauto_post_generator_service:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/vinas_post_generator_service:latest
             
             echo "📦 Composing up..."
             cd /srv/vinaslt/deploy_conf
